@@ -438,6 +438,7 @@
             currency: "NGN",
             ref: reference,
             metadata: {
+                orderId: order.orderId, // Phase 3: lets the server webhook correlate the charge to the order
                 custom_fields: [
                     { display_name: "Order ID", variable_name: "order_id", value: order.orderId },
                     { display_name: "Phone", variable_name: "phone", value: c.phone },

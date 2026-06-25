@@ -186,3 +186,39 @@ Every Phase 2 capability is reversible by flag. Disabling `ENABLE_ADMIN_MFA`
 returns admin login to password-only **without locking anyone out**; the MFA
 fields and audit-enum additions are additive and inert when the flag is off.
 See the Operations Recovery Procedure for the step-by-step rollback drill.
+
+## 8. Commerce integrity & checkout hardening (Phase 3)
+
+Money/inventory correctness for orders, payments, and the admin back-office. All
+behind default-off flags; see [PHASE_3_DESIGN.md](./PHASE_3_DESIGN.md) for the full
+design. Identity/Phase 2.5 admin auth is unchanged — admin endpoints reuse the
+existing `protect, admin` guard.
+
+- **Server-authoritative pricing:** `POST /orders` re-prices every line from the DB
+  (`controllers/orderController.js → repriceLines`); client price/total/paid-state
+  are ignored. Atomic gap-free order IDs via a `Counter`.
+- **Reserve → commit inventory** (`utils/inventory.js`): `available = stock −
+  reserved`. Create reserves (atomic conditional `$inc` under a MongoDB transaction);
+  verified payment commits (`reserved → stock`); cancel/expiry/manual-release frees;
+  refund restores. Every movement is an immutable `StockLedger` row (unique per
+  order+type+line = idempotency). Concurrency-safe: exactly one reservation wins the
+  last unit (no oversell).
+- **Payment verification** (`controllers/paymentController.js`, `utils/paystack.js`):
+  mandatory Paystack `verify`; amount checked in **kobo** + currency against the
+  server total; idempotent on `reference`/already-paid; every attempt logged to
+  `PaymentEvent`. Simulation only behind `ALLOW_SIMULATED_PAYMENTS` (dev). A
+  signature-verified **webhook** (HMAC-SHA512, raw body) and a reconciliation job are
+  the settlement safety net.
+- **Order lifecycle** (`utils/orderState.js`): a single state machine —
+  Awaiting Payment → (cancel) Cancelled; Paid → Processing → Shipped → Delivered;
+  Paid/…/Delivered → (refund) Refunded. Illegal transitions 409; each appends
+  `statusHistory`; payment (→ Paid) reachable only via verified settlement.
+- **Admin Orders Dashboard** (`routes/admin.js`, `controllers/adminOrdersController.js`):
+  `/api/admin/*` reads (orders w/ filter+search, payment timeline, inventory
+  movements) and actions (cancel / refund / manual release) — each requires a reason
+  and writes a `CommerceAuditLog` entry. Manual release frees the reservation and
+  keeps the order Awaiting Payment (no auto-cancel).
+- **New collections:** `counters`, `stockledgers`, `paymentevents`,
+  `commerceauditlogs`. **New flags:** `ENABLE_COMMERCE_INTEGRITY`,
+  `ENABLE_PAYMENT_WEBHOOK`, `ALLOW_SIMULATED_PAYMENTS`,
+  `ENABLE_ADMIN_ORDERS_DASHBOARD`, `ENABLE_GATEWAY_REFUND`.

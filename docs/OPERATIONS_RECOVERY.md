@@ -79,6 +79,30 @@ POST /admin/mfa/recovery/regenerate   { password, code }   # invalidates old cod
   endpoints return 404 and no alerts are sent. Added `Device` fields / audit-enum
   values are inert. `GET/DELETE /me/devices` continue to work.
 
+## 5c. Commerce operations (Phase 3)
+
+Requires `ENABLE_ADMIN_ORDERS_DASHBOARD=true`; all actions are admin-only and write
+to `CommerceAuditLog` (who/what/before→after/reason).
+
+- **Stuck reservation** (cart abandoned, stock held): it auto-frees after
+  `RESERVATION_TTL_MIN` via the sweeper; to free immediately use **Release** in the
+  dashboard (`POST /api/admin/orders/:id/release`) — order stays `Awaiting Payment`.
+- **Cancel an unpaid order:** `POST /api/admin/orders/:id/cancel` → `Cancelled` +
+  releases the reservation. (Reason required.)
+- **Refund a paid order:** `POST /api/admin/orders/:id/refund` → `Refunded` +
+  restores stock + audit. The actual gateway refund fires only when
+  `ENABLE_GATEWAY_REFUND=true`; otherwise refund the customer in the Paystack
+  dashboard manually.
+- **Payment never settled (customer paid, confirm didn't land):** the reconciliation
+  job re-verifies open orders carrying a reference; or replay/await the webhook.
+  Inspect `PaymentEvent` (`/api/admin/orders/:id/payments`) for `mismatch`/`duplicate`.
+- **Oversell concern:** inventory uses atomic reserve/commit under transactions —
+  `available = stock − reserved`. Review `StockLedger`
+  (`/api/admin/orders/:id/inventory`) for the per-unit movement trail.
+- **Rollback:** turn off the Phase 3 flags → legacy create/confirm behavior returns,
+  `/api/admin/*` + webhook 404, new fields/collections inert. Full code revert:
+  `git reset --hard pre-phase3`.
+
 ## 6. Lost / rotated `MFA_ENC_KEY`
 
 Existing encrypted TOTP secrets become undecryptable. Recovery:

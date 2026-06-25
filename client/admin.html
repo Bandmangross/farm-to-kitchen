@@ -1802,5 +1802,97 @@
 })();
 </script>
 
+<!-- Phase 3: Admin Orders Dashboard (commerce ops only; reuses the admin token + gate) -->
+<script>
+(function () {
+  function ready() { return window.API && API.getAdminToken && API.getAdminToken() && API.isAdmin && API.isAdmin() && API.adminOrders; }
+  var STATUSES = ["", "Awaiting Payment", "Paid", "Processing", "Shipped", "Delivered", "Cancelled", "Refunded"];
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function money(n) { return "₦" + Number(n || 0).toLocaleString(); }
+
+  var launcher, panel, mounted = false;
+  function mount() {
+    if (mounted) return; mounted = true;
+    launcher = document.createElement("button");
+    launcher.textContent = "📦 Orders";
+    launcher.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:9998;background:#1f7a3f;color:#fff;border:none;border-radius:24px;padding:12px 18px;font-weight:700;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.2)";
+    launcher.onclick = open;
+    document.body.appendChild(launcher);
+  }
+  function open() {
+    if (!panel) build();
+    panel.style.display = "flex"; load();
+  }
+  function build() {
+    panel = document.createElement("div");
+    panel.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.45);display:flex;align-items:flex-start;justify-content:center;padding:24px;font-family:Arial,sans-serif";
+    panel.innerHTML =
+      '<div style="background:#fff;border-radius:14px;max-width:900px;width:100%;max-height:90vh;overflow:auto;padding:18px 20px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">' +
+      '<h3 style="margin:0;color:#0b7a34">Orders Dashboard</h3>' +
+      '<button id="od-close" style="background:#eee;border:none;border-radius:8px;padding:6px 12px;cursor:pointer">Close</button></div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">' +
+      '<input id="od-search" placeholder="Search order ID…" style="flex:1;min-width:160px;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px">' +
+      '<select id="od-status" style="padding:8px;border:1.5px solid #e0e0e0;border-radius:8px">' + STATUSES.map(function (s) { return '<option value="' + s + '">' + (s || "All statuses") + "</option>"; }).join("") + "</select>" +
+      '<button id="od-refresh" style="background:#1f7a3f;color:#fff;border:none;border-radius:8px;padding:8px 14px;cursor:pointer">Search</button></div>' +
+      '<div id="od-list" style="font-size:13px">Loading…</div>' +
+      '<div id="od-detail" style="margin-top:14px"></div>' +
+      '<p id="od-msg" style="font-size:13px;color:#7a8a7f"></p></div>';
+    document.body.appendChild(panel);
+    panel.querySelector("#od-close").onclick = function () { panel.style.display = "none"; };
+    panel.querySelector("#od-refresh").onclick = load;
+    panel.querySelector("#od-search").addEventListener("keydown", function (e) { if (e.key === "Enter") load(); });
+  }
+  function msg(t) { panel.querySelector("#od-msg").textContent = t || ""; }
+  function load() {
+    var listEl = panel.querySelector("#od-list");
+    listEl.textContent = "Loading…"; panel.querySelector("#od-detail").innerHTML = ""; msg("");
+    API.adminOrders.list({ orderId: panel.querySelector("#od-search").value.trim(), status: panel.querySelector("#od-status").value, limit: 50 })
+      .then(function (d) { render(d.orders || []); })
+      .catch(function (e) { listEl.textContent = e.status === 404 ? "Orders dashboard is not enabled on the server." : (e.message || "Failed to load."); });
+  }
+  function render(orders) {
+    var el = panel.querySelector("#od-list");
+    if (!orders.length) { el.textContent = "No orders."; return; }
+    el.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead><tr style="text-align:left;color:#667">' +
+      "<th>Order</th><th>Customer</th><th>Total</th><th>Status</th><th>Payment</th><th></th></tr></thead><tbody>" +
+      orders.map(function (o) {
+        return '<tr style="border-top:1px solid #f0f3f1">' +
+          "<td>" + esc(o.orderId) + "</td><td>" + esc(o.customerName) + "</td><td>" + money(o.serverGrandTotal || o.grandTotal) + "</td>" +
+          "<td>" + esc(o.status) + "</td><td>" + esc(o.paymentStatus) + "</td>" +
+          '<td><button data-id="' + esc(o.orderId) + '" class="od-view" style="background:#fff;border:1.5px solid #cfe3d4;color:#0b7a34;border-radius:7px;padding:4px 10px;cursor:pointer">View</button></td></tr>';
+      }).join("") + "</tbody></table>";
+    el.querySelectorAll(".od-view").forEach(function (b) { b.onclick = function () { detail(b.getAttribute("data-id")); }; });
+  }
+  function detail(id) {
+    var de = panel.querySelector("#od-detail"); de.innerHTML = "Loading…";
+    Promise.all([API.adminOrders.get(id), API.adminOrders.payments(id), API.adminOrders.inventory(id)]).then(function (r) {
+      var o = r[0], pays = r[1], inv = r[2];
+      de.innerHTML =
+        '<div style="border:1px solid #e8eee9;border-radius:10px;padding:12px">' +
+        "<b>" + esc(o.orderId) + "</b> — " + esc(o.status) + " / " + esc(o.paymentStatus) + " · inv: " + esc(o.inventoryState) +
+        '<div style="margin:8px 0;color:#667">Payments: ' + (pays.events || []).map(function (e) { return esc(e.type); }).join(", ") + "</div>" +
+        '<div style="margin:8px 0;color:#667">Inventory: ' + (inv.movements || []).map(function (m) { return esc(m.type) + "×" + m.quantity; }).join(", ") + "</div>" +
+        '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="od-act" data-act="release" style="background:#fff;border:1.5px solid #e0c08a;color:#a06a00;border-radius:7px;padding:6px 12px;cursor:pointer">Release reservation</button>' +
+        '<button class="od-act" data-act="cancel" style="background:#fff;border:1.5px solid #e0b4b4;color:#c0392b;border-radius:7px;padding:6px 12px;cursor:pointer">Cancel</button>' +
+        '<button class="od-act" data-act="refund" style="background:#fff;border:1.5px solid #e0b4b4;color:#c0392b;border-radius:7px;padding:6px 12px;cursor:pointer">Refund</button></div></div>';
+      de.querySelectorAll(".od-act").forEach(function (b) {
+        b.onclick = function () {
+          var act = b.getAttribute("data-act");
+          var reason = prompt("Reason for " + act + ":"); if (!reason) return;
+          msg(act + "…");
+          API.adminOrders[act](id, reason).then(function () { msg(act + " done."); load(); }).catch(function (e) { msg(e.message || (act + " failed.")); });
+        };
+      });
+    }).catch(function (e) { de.textContent = e.message || "Failed to load detail."; });
+  }
+
+  // Wait for the admin gate to unlock, then attach the launcher.
+  var tries = 0;
+  var iv = setInterval(function () { if (ready()) { clearInterval(iv); mount(); } else if (++tries > 120) clearInterval(iv); }, 500);
+})();
+</script>
+
 </body>
 </html>

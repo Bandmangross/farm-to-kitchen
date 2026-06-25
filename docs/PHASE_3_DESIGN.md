@@ -1,6 +1,10 @@
 # Phase 3 — Commerce Integrity & Checkout Hardening (Design)
 
-_Status: **DESIGN — LOCKED, PENDING FINAL APPROVAL** · 2026-06-25_
+_Status: **IMPLEMENTED & VERIFIED** (flags default-off / dormant) · 2026-06-25_
+
+> Implemented across milestones M1–M8 with per-milestone verification. All behind
+> default-off flags (see Deployment Checklist §3/§4c). Backend left production-safe
+> with Phase 3 dormant. Git rollback point: tag `pre-phase3`.
 
 **Scope:** order creation, server-authoritative pricing, inventory consistency,
 payment verification, order lifecycle, and an Admin Orders Dashboard.

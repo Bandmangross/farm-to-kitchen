@@ -31,7 +31,7 @@ Node.js · Express · MongoDB · Mongoose · JWT · bcryptjs · Paystack (server
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — identity/auth/session architecture (Phase 2.1–2.5; admin MFA **locked**)
 - [docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) — env vars, feature flags, go-live steps
 - [docs/OPERATIONS_RECOVERY.md](docs/OPERATIONS_RECOVERY.md) — admin MFA reset, lockouts, rollback, backup/restore
-- [docs/PHASE_3_DESIGN.md](docs/PHASE_3_DESIGN.md) — Commerce Integrity & Checkout Hardening (design, **pending approval**)
+- [docs/PHASE_3_DESIGN.md](docs/PHASE_3_DESIGN.md) — Commerce Integrity & Checkout Hardening (**implemented**, flags default-off)
 
 ---
 

@@ -9,6 +9,7 @@ const variantSchema = new mongoose.Schema(
     label: { type: String, required: true, trim: true }, // e.g. "5kg", "Tray", "Carton"
     price: { type: Number, default: 0, min: 0 },         // price for ONE of this variant
     stock: { type: Number, default: 0, min: 0 },         // independent stock for this variant
+    reserved: { type: Number, default: 0, min: 0 },      // Phase 3: held by unpaid orders (available = stock - reserved)
   },
   { _id: false }
 );
@@ -23,6 +24,7 @@ const productSchema = new mongoose.Schema(
     // stock-status badges) keep working without change.
     price: { type: Number, required: true, min: 0 },
     stock: { type: Number, default: 0, min: 0 },
+    reserved: { type: Number, default: 0, min: 0 }, // Phase 3: legacy (non-variant) reservation hold
     variants: { type: [variantSchema], default: [] }, // empty = legacy kg-tier product
     image: { type: String, default: "" },
     description: { type: String, default: "" },

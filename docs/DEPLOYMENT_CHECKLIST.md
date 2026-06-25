@@ -51,6 +51,11 @@ Enable deliberately, one capability at a time, verifying after each.
 | `ENABLE_ADMIN_MFA` | **admin MFA enforcement** | see §4 |
 | `ENABLE_LOGIN_ALERTS` | new-device / new-location email alert | Phase 2.6 |
 | `ENABLE_SESSION_UI` | `/me/sessions` + sign-out-everywhere | Phase 2.6 |
+| `ENABLE_COMMERCE_INTEGRITY` | server re-pricing + reserve/commit inventory + hardened confirm | Phase 3 |
+| `ENABLE_PAYMENT_WEBHOOK` | signature-verified Paystack webhook | Phase 3 |
+| `ALLOW_SIMULATED_PAYMENTS` | **dev-only** simulated payment path | Phase 3 — **OFF in prod** |
+| `ENABLE_ADMIN_ORDERS_DASHBOARD` | `/api/admin/*` orders dashboard | Phase 3 |
+| `ENABLE_GATEWAY_REFUND` | real Paystack refund on admin refund | Phase 3 — off until reconciled |
 | `ENABLE_ORDER_VERIFICATION_GATE` | order gate (dormant) | leave off unless intended |
 
 > **Dev-echo flags must be OFF in prod:** `EMAIL_DEV_ECHO`, `PHONE_DEV_ECHO`,
@@ -84,6 +89,28 @@ Enable deliberately, one capability at a time, verifying after each.
       the right coarse location behind your load balancer.
 - [ ] `geoip-lite` ships a point-in-time DB; refresh periodically
       (`node node_modules/geoip-lite/scripts/updatedb.js`) to keep lookups current.
+
+## 4c. Commerce integrity & checkout hardening go-live (Phase 3)
+
+Staged cutover — enable one flag at a time and verify after each.
+
+- [ ] Run the additive backfill once: `node utils/migrateCommerce.js` (idempotent;
+      also creates the new collections + indexes so transactional writes work).
+- [ ] Confirm Atlas is a **replica set** (multi-document transactions are required).
+- [ ] `ENABLE_COMMERCE_INTEGRITY=true` → orders re-price server-side, reserve stock
+      (TTL `RESERVATION_TTL_MIN`, default 30), and settle via a transactional commit;
+      boot starts the **reservation sweeper** + **reconciliation** jobs. Tune
+      `DEFAULT_DELIVERY_FEE`, `RESERVATION_SWEEP_INTERVAL_MS`, `RECONCILE_INTERVAL_MS`.
+- [ ] `ENABLE_PAYMENT_WEBHOOK=true` → register the webhook URL
+      `POST /api/payments/webhook` in the Paystack dashboard (signature = HMAC-SHA512
+      over the raw body, keyed by `PAYSTACK_SECRET_KEY`). The client passes
+      `metadata.orderId` so the webhook can correlate the charge.
+- [ ] `ALLOW_SIMULATED_PAYMENTS` **must be OFF** in production (dev/testing only).
+- [ ] `ENABLE_ADMIN_ORDERS_DASHBOARD=true` → exposes `/api/admin/*` (behind
+      `protect, admin`; MFA enforced when admin MFA is on).
+- [ ] `ENABLE_GATEWAY_REFUND` last, only after reconciling with your Paystack refund
+      policy (off → admin refund is local: `Refunded` + stock restore + audit).
+- [ ] Real `PAYSTACK_SECRET_KEY` set (no `xxxx` placeholder).
 
 ## 5. Email / SMS providers (if enabling 2.2 / 2.3)
 

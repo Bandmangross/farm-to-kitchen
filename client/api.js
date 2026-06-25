@@ -172,6 +172,22 @@
     adminLogout: function () { setAdminToken(null); setAdminUser(null); },
     users: { list: function () { return request("/users", { admin: true }); } },
 
+    // ── admin orders dashboard (Phase 3; flag-gated server-side → 404 when off) ──
+    adminOrders: {
+      list: function (params) {
+        var qs = params ? "?" + Object.keys(params).filter(function (k) { return params[k] != null && params[k] !== ""; }).map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); }).join("&") : "";
+        return request("/admin/orders" + qs, { admin: true });
+      },
+      get: function (id) { return request("/admin/orders/" + encodeURIComponent(id), { admin: true }); },
+      payments: function (id) { return request("/admin/orders/" + encodeURIComponent(id) + "/payments", { admin: true }); },
+      inventory: function (id) { return request("/admin/orders/" + encodeURIComponent(id) + "/inventory", { admin: true }); },
+      allPayments: function (params) { var qs = params ? "?page=" + (params.page || 1) : ""; return request("/admin/payments" + qs, { admin: true }); },
+      allInventory: function (params) { var qs = params ? "?page=" + (params.page || 1) : ""; return request("/admin/inventory" + qs, { admin: true }); },
+      cancel: function (id, reason) { return request("/admin/orders/" + encodeURIComponent(id) + "/cancel", { method: "POST", body: { reason: reason }, admin: true }); },
+      refund: function (id, reason) { return request("/admin/orders/" + encodeURIComponent(id) + "/refund", { method: "POST", body: { reason: reason }, admin: true }); },
+      release: function (id, reason) { return request("/admin/orders/" + encodeURIComponent(id) + "/release", { method: "POST", body: { reason: reason }, admin: true }); },
+    },
+
     // ── products (list public; writes admin) ──
     products: {
       list: function (status) { return request("/products" + (status ? "?status=" + encodeURIComponent(status) : "")); },
