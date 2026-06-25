@@ -32,6 +32,7 @@ Node.js · Express · MongoDB · Mongoose · JWT · bcryptjs · Paystack (server
 - [docs/DEPLOYMENT_CHECKLIST.md](docs/DEPLOYMENT_CHECKLIST.md) — env vars, feature flags, go-live steps
 - [docs/OPERATIONS_RECOVERY.md](docs/OPERATIONS_RECOVERY.md) — admin MFA reset, lockouts, rollback, backup/restore
 - [docs/PHASE_3_DESIGN.md](docs/PHASE_3_DESIGN.md) — Commerce Integrity & Checkout Hardening (**implemented**, flags default-off)
+- [docs/PHASE3_ACTIVATION_RUNBOOK.md](docs/PHASE3_ACTIVATION_RUNBOOK.md) — Phase 3 flag-by-flag activation, verification & rollback runbook
 
 ---
 
