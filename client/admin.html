@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Farm To Kitchen</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js for the analytics charts (Section 4) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- API client — products read/write go to MongoDB via the backend -->
+    <script src="api.js"></script>
+</head>
+<body class="admin-body">
+
+<!-- ════════════════════════════════════════════════════════
+     LOGIN GATE  (preserved from previous version)
+     Demo-only client-side gate. Real security needs a backend.
+═════════════════════════════════════════════════════════ -->
+<div id="admin-gate" class="admin-gate">
+    <div class="admin-gate-card">
+        <span class="admin-gate-icon">🔐</span>
+        <h1>Admin Sign In</h1>
+
+        <!-- Step 1: credentials -->
+        <div id="ag-login">
+            <p>Sign in with your admin email and password.</p>
+            <div class="form-group"><label for="ag-email">Email</label><input type="email" id="ag-email" class="admin-input" placeholder="admin@farmtokitchen.com"></div>
+            <div class="form-group"><label for="ag-pass">Password</label><input type="password" id="ag-pass" class="admin-input" placeholder="Password" onkeydown="if(event.key==='Enter')adminSignIn()"></div>
+            <button class="auth-btn primary" onclick="adminSignIn()">Sign In</button>
+        </div>
+
+        <!-- Step 2: MFA challenge -->
+        <div id="ag-mfa" style="display:none">
+            <p>Enter the 6-digit code from your authenticator app (or a recovery code).</p>
+            <div class="form-group"><input type="text" id="ag-code" class="admin-input" placeholder="123456" inputmode="numeric" onkeydown="if(event.key==='Enter')adminVerifyMfa()"></div>
+            <button class="auth-btn primary" onclick="adminVerifyMfa()">Verify</button>
+        </div>
+
+        <!-- Step 3: enrollment (forced first login) -->
+        <div id="ag-enroll" style="display:none">
+            <p>Set up two-factor authentication. Add this secret to your authenticator app:</p>
+            <div class="form-group"><code id="ag-secret" style="word-break:break-all;font-size:13px;background:#f6f8f7;padding:8px;border-radius:6px;display:block"></code></div>
+            <p style="font-size:12px"><a id="ag-otpauth" href="#">Open in authenticator (otpauth link)</a></p>
+            <div class="form-group"><label for="ag-enroll-code">6-digit code</label><input type="text" id="ag-enroll-code" class="admin-input" placeholder="123456" inputmode="numeric"></div>
+            <button class="auth-btn primary" onclick="adminEnableMfa()">Enable MFA</button>
+        </div>
+
+        <!-- Recovery codes (shown once) -->
+        <div id="ag-recovery" style="display:none">
+            <p><b>Save your recovery codes</b> — shown only once:</p>
+            <pre id="ag-codes" style="background:#f6f8f7;padding:10px;border-radius:8px;font-size:13px;white-space:pre-wrap"></pre>
+            <button class="auth-btn primary" onclick="adminAfterEnroll()">I've saved them — continue</button>
+        </div>
+
+        <p id="ag-error" class="admin-gate-error" hidden></p>
+        <a href="index.html" class="admin-gate-back">&larr; Back to store</a>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     ADMIN APP  (hidden until authenticated)
+═════════════════════════════════════════════════════════ -->
+<div id="admin-app" style="display:none;">
+
+    <!-- ───── SECTION 1: PROFESSIONAL NAVIGATION ───── -->
+    <nav class="admin-nav">
+        <a href="index.html" class="nav-brand">
+            <span class="nav-logo">🌾</span>
+            <span>Farm To Kitchen</span>
+            <span class="admin-pill">Admin</span>
+        </a>
+
+        <div class="admin-tabs">
+            <button class="admin-tab active" data-section="dashboard">Dashboard</button>
+            <button class="admin-tab" data-section="orders">Orders</button>
+            <button class="admin-tab" data-section="customers">Customers</button>
+            <button class="admin-tab" data-section="products">Products</button>
+            <button class="admin-tab" data-section="analytics">Analytics</button>
+            <button class="admin-tab" data-section="settings">Settings</button>
+        </div>
+
+        <div class="admin-nav-right">
+            <!-- ───── SECTION 8: GLOBAL SEARCH ───── -->
+            <div class="global-search-wrap">
+                <input type="text" id="global-search" class="global-search" placeholder="🔍 Search orders, customers, products...">
+                <div id="global-results" class="global-results" hidden></div>
+            </div>
+            <button class="admin-logout-btn" onclick="adminLogout()">Logout</button>
+        </div>
+    </nav>
+
+    <main class="admin-main">
+
+        <!-- ══════════ DASHBOARD ══════════ -->
+        <section class="admin-section active" id="section-dashboard">
+            <div class="admin-head">
+                <div>
+                    <h1>Dashboard</h1>
+                    <p>Overview of store performance and customer activity</p>
+                </div>
+                <span id="admin-updated" class="admin-updated"></span>
+            </div>
+
+            <!-- ───── SECTION 3: ANALYTICS CARDS ───── -->
+            <div class="analytics-grid">
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-blue">👥</span><div><p class="admin-stat-label">Total Customers</p><p class="admin-stat-value" id="stat-customers">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-green">📦</span><div><p class="admin-stat-label">Total Orders</p><p class="admin-stat-value" id="stat-orders">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-gold">💰</span><div><p class="admin-stat-label">Total Revenue</p><p class="admin-stat-value" id="stat-revenue">₦0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-green">💳</span><div><p class="admin-stat-label">Paid Orders</p><p class="admin-stat-value" id="stat-paid">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-amber">🕗</span><div><p class="admin-stat-label">Unpaid Orders</p><p class="admin-stat-value" id="stat-unpaid">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-green">✅</span><div><p class="admin-stat-label">Delivered Orders</p><p class="admin-stat-value" id="stat-delivered">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-amber">🚫</span><div><p class="admin-stat-label">Cancelled Orders</p><p class="admin-stat-value" id="stat-cancelled">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-green">📅</span><div><p class="admin-stat-label">Revenue Today</p><p class="admin-stat-value" id="stat-rev-today">₦0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-blue">🗓️</span><div><p class="admin-stat-label">Revenue This Week</p><p class="admin-stat-value" id="stat-rev-week">₦0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-gold">📈</span><div><p class="admin-stat-label">Revenue This Month</p><p class="admin-stat-value" id="stat-rev-month">₦0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-blue">🧾</span><div><p class="admin-stat-label">Avg Order Value</p><p class="admin-stat-value" id="stat-aov">₦0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-green">🏆</span><div><p class="admin-stat-label">Top Selling Product</p><p class="admin-stat-value sm" id="stat-top-product">—</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-amber">🔁</span><div><p class="admin-stat-label">Repeat Customers</p><p class="admin-stat-value" id="stat-repeat">0</p></div></div>
+            </div>
+
+            <!-- Recent activity -->
+            <div class="admin-grid">
+                <section class="admin-panel">
+                    <div class="admin-panel-head"><h2>Recent Orders</h2><span class="admin-count" id="orders-count"></span></div>
+                    <div class="admin-table-wrap">
+                        <table class="admin-table">
+                            <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Total</th><th>Status</th></tr></thead>
+                            <tbody id="recent-orders"></tbody>
+                        </table>
+                    </div>
+                </section>
+                <section class="admin-panel">
+                    <div class="admin-panel-head"><h2>Recent Customers</h2><span class="admin-count" id="customers-count"></span></div>
+                    <div id="recent-customers" class="customer-list"></div>
+                </section>
+            </div>
+
+            <!-- ───── SECTION 11: RECENT ACTIVITY ───── -->
+            <section class="admin-panel" style="margin-top:24px;">
+                <div class="admin-panel-head"><h2>Recent Activity</h2></div>
+                <div id="activity-feed" class="activity-list"></div>
+            </section>
+        </section>
+
+        <!-- ══════════ SECTION 6: ORDER MANAGEMENT ══════════ -->
+        <section class="admin-section" id="section-orders">
+            <div class="admin-head"><div><h1>Orders</h1><p>Manage and track every customer order</p></div></div>
+
+            <div class="admin-toolbar">
+                <input type="text" id="orders-search" class="admin-input" placeholder="🔍 Search by order #, customer, email...">
+                <div class="filter-pills" id="orders-filters">
+                    <button class="filter-pill active" data-filter="all">All</button>
+                    <button class="filter-pill" data-filter="Awaiting Payment">Awaiting Payment</button>
+                    <button class="filter-pill" data-filter="Paid">Paid</button>
+                    <button class="filter-pill" data-filter="Processing">Processing</button>
+                    <button class="filter-pill" data-filter="Shipped">Shipped</button>
+                    <button class="filter-pill" data-filter="Delivered">Delivered</button>
+                    <button class="filter-pill" data-filter="Cancelled">Cancelled</button>
+                </div>
+            </div>
+
+            <section class="admin-panel">
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead><tr><th>Order ID</th><th>Customer</th><th>Date</th><th>Items</th><th>Total</th><th>Status</th><th></th></tr></thead>
+                        <tbody id="orders-table"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <!-- ══════════ SECTION 5: CUSTOMER MANAGEMENT ══════════ -->
+        <section class="admin-section" id="section-customers">
+            <div class="admin-head"><div><h1>Customers</h1><p>Everyone who has ordered from your store</p></div></div>
+
+            <div class="admin-toolbar">
+                <input type="text" id="customers-search" class="admin-input" placeholder="🔍 Search by name, email or phone...">
+            </div>
+
+            <section class="admin-panel">
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <thead><tr><th>Customer</th><th>Email</th><th>Phone</th><th>Orders</th><th>Total Spent</th><th>Member Since</th></tr></thead>
+                        <tbody id="customers-table"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+
+        <!-- ══════════ INVENTORY CENTER ══════════ -->
+        <section class="admin-section" id="section-products">
+            <div class="admin-head">
+                <div><h1>Inventory Center</h1><p>Track stock, value and movement across your catalogue</p></div>
+                <div class="inv-head-actions">
+                    <button class="btn-export" onclick="exportProductsCSV()">⬇ Products CSV</button>
+                    <button class="btn-export" onclick="exportInventoryCSV()">⬇ Inventory CSV</button>
+                    <button class="btn-add-product" onclick="openProductModal()">+ Add Product</button>
+                </div>
+            </div>
+
+            <!-- 1. Inventory summary cards -->
+            <div class="analytics-grid inv-summary">
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-blue">📦</span><div><p class="admin-stat-label">Total Products</p><p class="admin-stat-value" id="inv-total">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-green">✅</span><div><p class="admin-stat-label">In Stock</p><p class="admin-stat-value" id="inv-instock">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-amber">⚠️</span><div><p class="admin-stat-label">Low Stock</p><p class="admin-stat-value" id="inv-low">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-amber">⛔</span><div><p class="admin-stat-label">Out Of Stock</p><p class="admin-stat-value" id="inv-out">0</p></div></div>
+                <div class="admin-stat-card"><span class="admin-stat-icon icon-gold">💰</span><div><p class="admin-stat-label">Total Inventory Value</p><p class="admin-stat-value" id="inv-value">₦0</p></div></div>
+            </div>
+
+            <!-- 2 + 3. Toolbar: search, filters, view toggle -->
+            <div class="admin-toolbar inv-toolbar">
+                <input type="text" id="products-search" class="admin-input" placeholder="🔍 Search products, SKU, category...">
+                <div class="filter-pills" id="inventory-filters">
+                    <button class="filter-pill active" data-filter="all">All</button>
+                    <button class="filter-pill" data-filter="in">In Stock</button>
+                    <button class="filter-pill" data-filter="low">Low Stock</button>
+                    <button class="filter-pill" data-filter="out">Out Of Stock</button>
+                </div>
+                <div class="view-toggle" id="view-toggle">
+                    <button class="view-btn active" data-view="card">▦ Card</button>
+                    <button class="view-btn" data-view="table">▤ Table</button>
+                </div>
+            </div>
+
+            <!-- Card view -->
+            <div id="products-grid" class="admin-products-grid"></div>
+
+            <!-- Table view -->
+            <section class="admin-panel inv-table-panel" id="products-table-panel" style="display:none;">
+                <div class="admin-table-wrap">
+                    <table class="admin-table inv-table">
+                        <thead><tr><th>Image</th><th>Product</th><th>SKU</th><th>Category</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
+                        <tbody id="products-table"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 10. Inventory charts -->
+            <div class="charts-grid inv-charts">
+                <section class="admin-panel chart-card"><div class="admin-panel-head"><h2>Products by Category</h2></div><canvas id="chart-category"></canvas></section>
+                <section class="admin-panel chart-card"><div class="admin-panel-head"><h2>Stock Levels</h2></div><canvas id="chart-stock"></canvas></section>
+                <section class="admin-panel chart-card chart-wide"><div class="admin-panel-head"><h2>Inventory Value by Product</h2></div><canvas id="chart-invvalue"></canvas></section>
+            </div>
+
+            <!-- 9. Inventory activity log -->
+            <section class="admin-panel" style="margin-top:24px;">
+                <div class="admin-panel-head"><h2>Inventory Activity</h2></div>
+                <div id="inventory-activity" class="activity-list"></div>
+            </section>
+        </section>
+
+        <!-- ══════════ SECTION 4: ANALYTICS / CHARTS ══════════ -->
+        <section class="admin-section" id="section-analytics">
+            <div class="admin-head"><div><h1>Analytics</h1><p>Trends across the last 7 days</p></div></div>
+
+            <div class="charts-grid">
+                <section class="admin-panel chart-card">
+                    <div class="admin-panel-head"><h2>Revenue by Day</h2></div>
+                    <canvas id="chart-revenue"></canvas>
+                </section>
+                <section class="admin-panel chart-card">
+                    <div class="admin-panel-head"><h2>Orders by Day</h2></div>
+                    <canvas id="chart-orders"></canvas>
+                </section>
+                <section class="admin-panel chart-card chart-wide">
+                    <div class="admin-panel-head"><h2>Customer Growth</h2></div>
+                    <canvas id="chart-customers"></canvas>
+                </section>
+            </div>
+        </section>
+
+        <!-- ══════════ SETTINGS ══════════ -->
+        <section class="admin-section" id="section-settings">
+            <div class="admin-head"><div><h1>Settings</h1><p>Store configuration and data management</p></div></div>
+
+            <div class="settings-grid">
+                <section class="admin-panel">
+                    <div class="admin-panel-head"><h2>Store & Payment</h2></div>
+                    <div class="form-group"><label for="set-store-name">Store Name</label><input type="text" id="set-store-name" class="admin-input"></div>
+                    <div class="form-group"><label for="set-paystack-key">Paystack Public Key</label><input type="text" id="set-paystack-key" class="admin-input" placeholder="pk_test_..."></div>
+                    <button class="auth-btn primary" onclick="saveStoreSettings()">Save Changes</button>
+                    <p id="settings-saved" class="settings-saved" hidden>✓ Saved</p>
+                </section>
+
+                <section class="admin-panel">
+                    <div class="admin-panel-head"><h2>Change Admin Password</h2></div>
+                    <div class="form-group"><label for="set-new-password">New Password</label><input type="password" id="set-new-password" class="admin-input" placeholder="New admin password"></div>
+                    <button class="auth-btn secondary" onclick="changeAdminPassword()">Update Password</button>
+                    <p id="password-saved" class="settings-saved" hidden>✓ Password updated</p>
+                </section>
+
+                <section class="admin-panel danger-zone">
+                    <div class="admin-panel-head"><h2>Data Management</h2></div>
+                    <p class="danger-note">These actions affect locally stored demo data and cannot be undone.</p>
+                    <button class="btn-danger" onclick="clearProducts()">Reset Products to Default</button>
+                    <button class="btn-danger" onclick="clearOrders()">Clear All Orders</button>
+                </section>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     PRODUCT ADD/EDIT MODAL  (Section 7)
+═════════════════════════════════════════════════════════ -->
+<div id="product-modal" class="modal-overlay" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
+        <div class="modal-head">
+            <h2 id="product-modal-title">Add Product</h2>
+            <button class="modal-close" onclick="closeProductModal()" aria-label="Close">✕</button>
+        </div>
+        <div class="modal-body">
+            <!-- Product details — compact 2-column -->
+            <div class="pm-grid2">
+                <div class="pm-col">
+                    <div class="form-group"><label for="pm-name">Product Name</label><input type="text" id="pm-name" class="admin-input" placeholder="e.g. Rice"></div>
+                    <div class="form-group"><label for="pm-category">Category</label><input type="text" id="pm-category" class="admin-input" placeholder="e.g. Grains" list="category-options">
+                        <datalist id="category-options"><option>Grains</option><option>Legumes</option><option>Flour</option><option>Spices</option><option>Oils</option><option>General</option></datalist>
+                    </div>
+                </div>
+                <div class="pm-col">
+                    <div class="form-group"><label for="pm-sku">SKU</label><input type="text" id="pm-sku" class="admin-input" placeholder="Auto-generated" readonly></div>
+                    <div class="form-group"><label for="pm-status">Visibility</label>
+                        <select id="pm-status" class="admin-input">
+                            <option value="active">Active</option>
+                            <option value="draft">Draft (hidden)</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group"><label for="pm-desc">Description</label><textarea id="pm-desc" class="admin-input pm-textarea" placeholder="Short description"></textarea></div>
+
+            <!-- ── Units & Variants (universal — each product defines its own units) ── -->
+            <div class="form-group pm-variants-group">
+                <div class="pm-variants-top">
+                    <label>Units &amp; Variants</label>
+                    <span class="pm-total-stock">Total stock: <strong id="pm-total-stock">0</strong></span>
+                </div>
+                <div class="pm-variants-head">
+                    <span>Unit / Variant</span><span>Price (₦)</span><span>Stock</span><span></span>
+                </div>
+                <div id="pm-variants-rows"></div>
+                <button type="button" class="pm-variant-add" onclick="addVariantRow()">+ Add Unit</button>
+            </div>
+
+            <!-- Legacy fallback price/stock — used ONLY when no variants are defined -->
+            <div class="modal-row" id="pm-legacy-pricing">
+                <div class="form-group"><label for="pm-price">Base Price (₦)</label><input type="number" id="pm-price" class="admin-input" placeholder="5000"></div>
+                <div class="form-group"><label for="pm-stock">Stock</label><input type="number" id="pm-stock" class="admin-input" placeholder="100"></div>
+            </div>
+
+            <!-- Collapsible image — thumbnail by default, click to enlarge -->
+            <div class="form-group pm-image-group">
+                <label>Product Image</label>
+                <div class="pm-image-row">
+                    <img id="pm-preview" class="pm-preview" alt="Product image preview" hidden role="button" tabindex="0" aria-expanded="false" title="Click to enlarge"
+                        onclick="togglePmPreview()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();togglePmPreview();}">
+                    <label class="pm-upload-btn" for="pm-image">Upload / Replace Image</label>
+                    <input type="file" id="pm-image" accept="image/*" class="pm-file" onchange="previewProductImage(event)">
+                </div>
+            </div>
+
+            <!-- ── SEO (collapsed by default to keep the modal compact) ── -->
+            <details class="pm-section">
+                <summary>SEO</summary>
+                <div class="pm-section-body">
+                    <div class="form-group"><label for="pm-seo-title">SEO Title <span class="pm-counter" id="pm-seo-title-count">0/60</span></label>
+                        <input type="text" id="pm-seo-title" class="admin-input" placeholder="Defaults to product name" maxlength="120"></div>
+                    <div class="form-group"><label for="pm-seo-desc">SEO Description <span class="pm-counter" id="pm-seo-desc-count">0/160</span></label>
+                        <textarea id="pm-seo-desc" class="admin-input pm-textarea" placeholder="Description shown in search results" maxlength="320"></textarea></div>
+                    <div class="form-group"><label for="pm-seo-slug">Product Slug</label>
+                        <input type="text" id="pm-seo-slug" class="admin-input" placeholder="auto-generated-from-name"></div>
+                </div>
+            </details>
+
+            <!-- ── Shipping (collapsed by default) ── -->
+            <details class="pm-section">
+                <summary>Shipping</summary>
+                <div class="pm-section-body">
+                    <div class="form-group"><label for="pm-ship-weight">Shipping Weight</label>
+                        <div class="pm-suffix-field"><input type="number" id="pm-ship-weight" class="admin-input" placeholder="0.0" min="0" step="0.1"><span class="pm-suffix">kg</span></div></div>
+                </div>
+            </details>
+            <p class="pm-future-note">SEO &amp; Shipping are captured now; they’ll persist once the backend migration adds these fields.</p>
+        </div>
+        <div class="modal-foot">
+            <button class="btn-clear" onclick="closeProductModal()">Cancel</button>
+            <button class="auth-btn primary" onclick="saveProduct()">Save Product</button>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════
+     ORDER DETAILS MODAL  (Section 7 of order requirements)
+═════════════════════════════════════════════════════════ -->
+<div id="order-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+        <div class="modal-head">
+            <h2 id="order-modal-title">Order Details</h2>
+            <button class="modal-close" onclick="closeOrderModal()">✕</button>
+        </div>
+        <div class="modal-body" id="order-modal-body">
+            <!-- populated by JS -->
+        </div>
+        <div class="modal-foot">
+            <button class="auth-btn primary" onclick="closeOrderModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    /* ════════════════════════════════════════════════════════
+       LOGIN GATE  (preserved)
+    ═════════════════════════════════════════════════════════ */
+    // Phase 2.5: real admin sign-in via /admin/login + TOTP MFA. No client-side gate
+    // password and NO stored admin credentials.
+    var _enrollToken = null, _mfaToken = null, _enrollPassword = null;
+    function agErr(msg) { var e = document.getElementById("ag-error"); e.textContent = msg || ""; e.hidden = !msg; }
+    function agShow(step) { ["ag-login", "ag-mfa", "ag-enroll", "ag-recovery"].forEach(function (id) { document.getElementById(id).style.display = (id === step ? "block" : "none"); }); }
+    function isAuthed() { return !!(window.API && API.getAdminToken() && API.isAdmin()); }
+
+    window.adminSignIn = function () {
+        agErr("");
+        var email = document.getElementById("ag-email").value.trim(), pass = document.getElementById("ag-pass").value;
+        if (!email || !pass) { agErr("Enter your email and password."); return; }
+        API.adminLogin(email, pass).then(function (d) {
+            if (d.token) { unlock(); return; }
+            if (d.mfaRequired) { _mfaToken = d.mfaToken; agShow("ag-mfa"); document.getElementById("ag-code").focus(); return; }
+            if (d.enrollmentRequired) { _enrollToken = d.enrollToken; _enrollPassword = pass; startEnroll(); return; }
+            agErr("Unexpected response from server.");
+        }).catch(function (e) { agErr(e.message || "Sign in failed."); });
+    };
+    window.adminVerifyMfa = function () {
+        agErr("");
+        API.adminLoginMfa(_mfaToken, document.getElementById("ag-code").value.trim())
+            .then(function () { unlock(); }).catch(function (e) { agErr(e.message || "Invalid code."); });
+    };
+    function startEnroll() {
+        API.adminMfaSetup(_enrollToken, _enrollPassword).then(function (d) {
+            document.getElementById("ag-secret").textContent = d.secret;
+            document.getElementById("ag-otpauth").href = d.otpauthUrl;
+            agShow("ag-enroll");
+        }).catch(function (e) { agErr(e.message || "Could not start MFA setup."); agShow("ag-login"); });
+    }
+    window.adminEnableMfa = function () {
+        agErr("");
+        var code = document.getElementById("ag-enroll-code").value.trim();
+        API.adminMfaEnable(_enrollToken, _enrollPassword, code).then(function (d) {
+            document.getElementById("ag-codes").textContent = (d.recoveryCodes || []).join("\n");
+            agShow("ag-recovery");
+        }).catch(function (e) { agErr(e.message || "Could not enable MFA."); });
+    };
+    window.adminAfterEnroll = function () {
+        // Enabling MFA bumped tokenVersion → the enroll token is dead; sign in again with MFA.
+        _enrollToken = null; _enrollPassword = null;
+        document.getElementById("ag-pass").value = "";
+        agShow("ag-login");
+        agErr("MFA enabled. Please sign in again, then enter your authenticator code.");
+    };
+    window.adminLogout = function () { if (window.API && API.adminLogout) API.adminLogout(); window.location.reload(); };
+    function unlock() {
+        document.getElementById("admin-gate").style.display = "none";
+        document.getElementById("admin-app").style.display = "block";
+        initApp();
+    }
+
+    /* ════════════════════════════════════════════════════════
+       DATA HELPERS  (revenue logic & order data preserved)
+    ═════════════════════════════════════════════════════════ */
+    var ORDER_STATUSES = ["Awaiting Payment", "Paid", "Processing", "Shipped", "Delivered", "Cancelled"];
+
+    // ── Order data: MongoDB (via the API) is the source of truth ─────────────
+    // A synchronous cache backs the existing render code; it is filled from the
+    // API and falls back to localStorage only when the backend is unreachable.
+    var orderCache = null;
+
+    // Order line items may be objects (API) or strings (localStorage). The admin UI
+    // renders strings, so normalise both to "Name - qty - ₦price".
+    function normalizeOrderItems(items) {
+        return (Array.isArray(items) ? items : []).map(function (it) {
+            if (it && typeof it === "object") {
+                return (it.name || "") +
+                    (it.quantity ? " - " + it.quantity : "") +
+                    (it.price ? " - ₦" + (Number(it.price) || 0).toLocaleString() : "");
+            }
+            return it;
+        });
+    }
+    function normalizeOrder(o) {
+        var n = {};
+        for (var k in o) { if (Object.prototype.hasOwnProperty.call(o, k)) n[k] = o[k]; }
+        n.id = o._id || o.id;             // keep the Mongo id for status updates
+        n.items = normalizeOrderItems(o.items);
+        return n;
+    }
+    // Newest first — sort by createdAt desc (falls back to timestamp/date for local orders).
+    function orderTime(o) { return new Date(o.createdAt || o.timestamp || o.date || 0).getTime() || 0; }
+    function sortOrdersDesc(arr) { return arr.slice().sort(function (a, b) { return orderTime(b) - orderTime(a); }); }
+
+    function getOrders() {
+        if (orderCache) return orderCache;
+        try {
+            var saved = JSON.parse(localStorage.getItem("orderHistory") || "[]");
+            return Array.isArray(saved) ? sortOrdersDesc(saved.map(normalizeOrder)) : [];
+        } catch (e) { console.error(e); return []; }
+    }
+    // Local fallback writer (only used when the API is unavailable).
+    function saveOrders(orders) {
+        orderCache = sortOrdersDesc((orders || []).map(normalizeOrder));
+        try { localStorage.setItem("orderHistory", JSON.stringify(orderCache)); } catch (e) {}
+    }
+    // Primary load: all orders from MongoDB (admin token required). Falls back to local.
+    async function loadOrders() {
+        // Use the ADMIN token slot (not the customer ftk_token).
+        var hasToken = !!(window.API && API.getAdminToken());
+        console.log("[FTK] loadOrders token exists:", hasToken);
+
+        if (hasToken) {
+            try {
+                var list = await API.orders.list();
+                orderCache = sortOrdersDesc(list.map(normalizeOrder));
+                console.log("[FTK] Admin orders loaded from API (MongoDB):", orderCache.length);
+                return "api";
+            } catch (e) {
+                // A token IS present — do NOT silently show stale localStorage data.
+                console.error("[FTK] Orders API request FAILED (admin token present; NOT using localStorage).", e);
+                orderCache = orderCache || [];
+                return "error";
+            }
+        }
+
+        // Only fall back to localStorage when there is genuinely no admin token.
+        console.error("[FTK] No admin token — Admin Orders falling back to localStorage (NOT MongoDB).");
+        try {
+            var s = JSON.parse(localStorage.getItem("orderHistory") || "[]");
+            orderCache = Array.isArray(s) ? sortOrdersDesc(s.map(normalizeOrder)) : [];
+        } catch (e) { orderCache = []; }
+        return "localStorage";
+    }
+
+    /* ── Activity log (Section 11) — persisted admin event feed ── */
+    function getActivity() {
+        try {
+            var saved = JSON.parse(localStorage.getItem("ftk_activity") || "[]");
+            return Array.isArray(saved) ? saved : [];
+        } catch (e) { return []; }
+    }
+    function logActivity(icon, message) {
+        var log = getActivity();
+        log.unshift({ icon: icon, message: message, time: Date.now() });
+        localStorage.setItem("ftk_activity", JSON.stringify(log.slice(0, 40)));
+    }
+
+    // Ensure every order has a status + payment status (additive migration — never deletes data)
+    function ensureOrderStatuses() {
+        var orders = getOrders(), changed = false;
+        orders.forEach(function (o) {
+            if (!o.status)                 { o.status = o.paymentStatus === "Paid" ? "Paid" : "Awaiting Payment"; changed = true; }
+            if (o.status === "Pending")    { o.status = "Awaiting Payment"; changed = true; }
+            if (!o.paymentStatus)          { o.paymentStatus = o.status === "Paid" ? "Paid" : "Awaiting Payment"; changed = true; }
+            if (o.paymentStatus === "Pending") { o.paymentStatus = "Awaiting Payment"; changed = true; }
+        });
+        if (changed) saveOrders(orders);
+        return orders;
+    }
+
+    function naira(n) { return "₦" + (Number(n) || 0).toLocaleString(); }
+    function initial(name) { return (name || "?").trim().charAt(0).toUpperCase() || "?"; }
+    function esc(v) { var d = document.createElement("div"); d.textContent = v == null ? "" : v; return d.innerHTML; }
+    // Branded, network-free fallback image — never show a broken icon in admin either.
+    var FTK_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">' +
+        '<rect width="400" height="300" fill="#eef7f0"/>' +
+        '<circle cx="200" cy="118" r="46" fill="#d8ecdd"/>' +
+        '<text x="200" y="130" font-family="Arial,Helvetica,sans-serif" font-size="30" font-weight="bold" fill="#0b7a34" text-anchor="middle">FTK</text>' +
+        '<text x="200" y="200" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="bold" fill="#0b7a34" text-anchor="middle">Farm To Kitchen</text>' +
+        '<text x="200" y="226" font-family="Arial,Helvetica,sans-serif" font-size="13" fill="#7a8a7f" text-anchor="middle">Image coming soon</text>' +
+        '</svg>'
+    );
+    window.ftkImgFallback = function (img) { img.onerror = null; img.src = FTK_PLACEHOLDER; };
+    function productImg(src) { return src ? esc(src) : FTK_PLACEHOLDER; }
+    function statusClass(s) { return "status-" + (s || "Awaiting Payment").toLowerCase().replace(/\s+/g, "-"); }
+    function orderLabel(o, i) { return o.orderId || ("#" + (i + 1)); }
+
+    function parseDate(str) { var d = new Date(str); return isNaN(d.getTime()) ? null : d; }
+    function dayKey(d) { return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+
+    // Build the unique-customer map from orders (keyed by email → phone → name)
+    function buildCustomers(orders) {
+        var map = {};
+        orders.forEach(function (o, index) {
+            var key = (o.customerEmail || o.customerPhone || o.customerName || "guest-" + index)
+                .toString().toLowerCase().trim();
+            if (!map[key]) {
+                map[key] = { name: o.customerName || "Guest", email: o.customerEmail || "—",
+                             phone: o.customerPhone || "—", orders: 0, spent: 0, firstDate: o.date, lastIndex: index };
+            }
+            map[key].orders += 1;
+            map[key].spent += (Number(o.grandTotal) || 0);
+            map[key].lastIndex = index;
+        });
+        return Object.keys(map).map(function (k) { return map[k]; });
+    }
+
+    // Product name parsed from an item string like "Rice - 1kg - ₦5,000"
+    function productNameFromItem(item) { return String(item).split(" - ")[0].trim(); }
+
+    /* ════════════════════════════════════════════════════════
+       PRODUCT STORE  (Section 7 — new localStorage key)
+    ═════════════════════════════════════════════════════════ */
+    var LOW_STOCK = 10; // threshold for the "Low Stock" badge
+
+    var DEFAULT_PRODUCTS = [
+        { id: "p-rice",    name: "Rice",           sku: "FTK-1001", category: "Grains",  price: 5000, stock: 120, image: "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400", description: "Premium quality long-grain rice." },
+        { id: "p-beans",   name: "Beans",          sku: "FTK-1002", category: "Legumes", price: 4000, stock: 90,  image: "https://images.unsplash.com/photo-1515543237350-b3eea1ec8082?w=400", description: "Fresh and nutritious brown beans." },
+        { id: "p-ofada",   name: "Ofada Rice",     sku: "FTK-1003", category: "Grains",  price: 6000, stock: 60,  image: "https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=400", description: "Authentic Nigerian Ofada Rice." },
+        { id: "p-plantain",name: "Plantain Flour", sku: "FTK-1004", category: "Flour",   price: 3500, stock: 75,  image: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?w=400", description: "Healthy plantain flour for every meal." }
+    ];
+    // ── Product data: MongoDB (via the API) is the source of truth ───────────
+    // A synchronous in-memory cache backs the existing render code; it is filled
+    // from the API and mirrored to localStorage ONLY as a temporary offline fallback.
+    var productCache = [];
+
+    function normalizeProduct(p) {
+        var variants = Array.isArray(p.variants)
+            ? p.variants.map(function (v) {
+                return { label: String(v.label || "").trim(), price: Number(v.price) || 0, stock: Number(v.stock) || 0 };
+            }).filter(function (v) { return v.label; })
+            : [];
+        return {
+            id: p._id || p.id,
+            name: p.name,
+            sku: p.sku || "",
+            category: p.category || "General",
+            price: Number(p.price) || 0,
+            stock: Number(p.stock) || 0,
+            variants: variants,
+            image: p.image || "",
+            description: p.description || "",
+            tag: p.tag || "",
+            status: p.status || "active"
+        };
+    }
+    function getProducts() { return productCache; }
+
+    function cacheProducts(list) {
+        productCache = (list || []).map(normalizeProduct);
+        try { localStorage.setItem("ftk_products", JSON.stringify(productCache)); } catch (e) {}
+    }
+    // Local fallback writer (used only when the API is unreachable)
+    function saveProducts(list) { cacheProducts(list); }
+
+    function primeCacheFromLocal() {
+        try {
+            var s = JSON.parse(localStorage.getItem("ftk_products") || "null");
+            if (Array.isArray(s) && s.length) { productCache = s.map(normalizeProduct); return; }
+        } catch (e) {}
+        productCache = DEFAULT_PRODUCTS.map(normalizeProduct);
+    }
+    // Primary load: MongoDB via the API. Falls back to the local cache when offline.
+    async function loadProducts() {
+        if (window.API) {
+            // Admin manages the FULL catalogue (active + archived).
+            try { cacheProducts(await API.products.list("all")); return; }
+            catch (e) { console.warn("Products API unavailable — using local cache.", e); }
+        }
+        primeCacheFromLocal();
+    }
+
+    // Best-effort admin token so product WRITES reach MongoDB.
+    // Temporary Step-1 bridge — replaced by proper admin login in a later step.
+    // Phase 2.5: the admin session token is obtained ONLY via the MFA sign-in flow above.
+    // No credentials are persisted in the browser. This just reports whether a valid
+    // admin session token is present.
+    async function ensureAdminToken() {
+        return !!(window.API && API.getAdminToken() && API.isAdmin());
+    }
+
+    // Visible (non-silent) banner when admin data can't come from MongoDB.
+    function showBackendWarning(authed) {
+        var el = document.getElementById("ftk-backend-warning");
+        if (!el) {
+            el = document.createElement("div");
+            el.id = "ftk-backend-warning";
+            el.style.cssText = "background:#fdeaea;color:#a11722;padding:10px 16px;font-size:13px;" +
+                "text-align:center;border-bottom:1px solid #f3c2c2;font-family:inherit;position:relative;z-index:2000;";
+            document.body.insertBefore(el, document.body.firstChild);
+        }
+        el.innerHTML = authed
+            ? "&#9888; Backend reachable, but Admin Orders failed to load from MongoDB — showing local fallback. Check the server logs."
+            : "&#9888; Admin Orders are showing <b>LOCAL fallback data</b>, not MongoDB — your admin session may have expired. " +
+              "Please <a href='#' onclick='adminLogout();return false;'>sign in again</a>.";
+    }
+    function hideBackendWarning() {
+        var el = document.getElementById("ftk-backend-warning");
+        if (el) el.remove();
+    }
+
+    // Section 4: SKU generation — FTK-1001, FTK-1002 … (next above the current max)
+    function nextSku(list) {
+        var max = 1000;
+        (list || getProducts()).forEach(function (p) {
+            var m = /FTK-(\d+)/.exec(p.sku || "");
+            if (m) max = Math.max(max, parseInt(m[1], 10));
+        });
+        return "FTK-" + (max + 1);
+    }
+
+    // Meta is guaranteed by the backend / normaliser — kept as a shim for callers.
+    function ensureProductMeta() { return getProducts(); }
+
+    // Stock status helper used by the inventory views and storefront badges
+    function stockStatus(stock) {
+        stock = Number(stock) || 0;
+        if (stock <= 0)        return { key: "out", label: "Out Of Stock", cls: "stk-out" };
+        if (stock <= LOW_STOCK) return { key: "low", label: "Low Stock",   cls: "stk-low" };
+        return { key: "in", label: "In Stock", cls: "stk-in" };
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 1: NAVIGATION (tab switching + active highlight)
+    ═════════════════════════════════════════════════════════ */
+    function setupNav() {
+        document.querySelectorAll(".admin-tab").forEach(function (tab) {
+            tab.addEventListener("click", function () { switchSection(tab.dataset.section); });
+        });
+    }
+    function switchSection(name) {
+        document.querySelectorAll(".admin-tab").forEach(function (t) {
+            t.classList.toggle("active", t.dataset.section === name);
+        });
+        document.querySelectorAll(".admin-section").forEach(function (s) {
+            s.classList.toggle("active", s.id === "section-" + name);
+        });
+        if (name === "analytics") renderCharts();        // charts need a visible canvas to size correctly
+        if (name === "products")  renderInventoryCharts(); // inventory charts likewise
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 3: ANALYTICS CARDS + dashboard recent activity
+    ═════════════════════════════════════════════════════════ */
+    function renderDashboard() {
+        var orders = getOrders();
+        var customers = buildCustomers(orders);
+        var now = new Date();
+        var startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var startWeek  = new Date(startToday); startWeek.setDate(startWeek.getDate() - 6);
+        var startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        // Revenue counts ONLY paid orders (real money received via Paystack / settled)
+        var revenue = 0, revToday = 0, revWeek = 0, revMonth = 0;
+        var paid = 0, unpaid = 0, delivered = 0, cancelled = 0;
+        var productCounts = {};
+        orders.forEach(function (o) {
+            var g = Number(o.grandTotal) || 0;
+            // A cancelled order never counts as paid revenue, even if it was paid earlier.
+            var isPaid = o.paymentStatus === "Paid" && o.status !== "Cancelled";
+            if (isPaid) paid += 1; else unpaid += 1;
+            if (o.status === "Delivered") delivered += 1;
+            if (o.status === "Cancelled") cancelled += 1;
+            if (isPaid) {
+                revenue += g;
+                var d = parseDate(o.date);
+                if (d) {
+                    if (d >= startToday) revToday += g;
+                    if (d >= startWeek)  revWeek += g;
+                    if (d >= startMonth) revMonth += g;
+                }
+            }
+            (Array.isArray(o.items) ? o.items : []).forEach(function (it) {
+                var n = productNameFromItem(it);
+                productCounts[n] = (productCounts[n] || 0) + 1;
+            });
+        });
+
+        var topProduct = "—", topCount = 0;
+        Object.keys(productCounts).forEach(function (n) {
+            if (productCounts[n] > topCount) { topCount = productCounts[n]; topProduct = n; }
+        });
+        var repeat = customers.filter(function (c) { return c.orders > 1; }).length;
+        var aov = paid ? revenue / paid : 0;
+
+        setText("stat-customers", customers.length);
+        setText("stat-orders", orders.length);
+        setText("stat-revenue", naira(revenue));
+        setText("stat-paid", paid);
+        setText("stat-unpaid", unpaid);
+        setText("stat-delivered", delivered);
+        setText("stat-cancelled", cancelled);
+        setText("stat-rev-today", naira(revToday));
+        setText("stat-rev-week", naira(revWeek));
+        setText("stat-rev-month", naira(revMonth));
+        setText("stat-aov", naira(Math.round(aov)));
+        setText("stat-top-product", topProduct);
+        setText("stat-repeat", repeat);
+        setText("admin-updated", "Updated " + now.toLocaleString());
+
+        // Recent orders (newest first, up to 8)
+        var ob = document.getElementById("recent-orders");
+        if (!orders.length) {
+            ob.innerHTML = '<tr><td colspan="5" class="admin-empty">No orders yet.</td></tr>';
+        } else {
+            setText("orders-count", orders.length + " total");
+            var rows = "";
+            // orders are sorted newest-first; show the first 8.
+            for (var i = 0; i < Math.min(8, orders.length); i++) {
+                var o = orders[i] || {};
+                rows += '<tr><td><strong>' + esc(orderLabel(o, i)) + '</strong></td>' +
+                    '<td><span class="cust-name">' + esc(o.customerName || "Guest") + '</span>' +
+                    '<span class="cust-sub">' + esc(o.customerEmail || "") + '</span></td>' +
+                    '<td class="muted">' + esc(o.date || "—") + '</td>' +
+                    '<td><strong>' + naira(o.grandTotal) + '</strong></td>' +
+                    '<td><span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status || "Awaiting Payment") + '</span></td></tr>';
+            }
+            ob.innerHTML = rows;
+        }
+
+        // Recent customers (up to 6)
+        var cb = document.getElementById("recent-customers");
+        if (!customers.length) {
+            cb.innerHTML = '<p class="admin-empty">No customers yet.</p>';
+        } else {
+            setText("customers-count", customers.length + " total");
+            cb.innerHTML = customers.slice().sort(function (a, b) { return b.lastIndex - a.lastIndex; })
+                .slice(0, 6).map(function (c) {
+                    return '<div class="customer-row"><div class="customer-avatar">' + initial(c.name) + '</div>' +
+                        '<div class="customer-info"><span class="cust-name">' + esc(c.name) + '</span>' +
+                        '<span class="cust-sub">' + esc(c.email) + ' · ' + esc(c.phone) + '</span></div>' +
+                        '<div class="customer-meta"><span class="cust-orders">' + c.orders + ' order' + (c.orders > 1 ? "s" : "") + '</span>' +
+                        '<span class="cust-spent">' + naira(c.spent) + '</span></div></div>';
+                }).join("");
+        }
+
+        renderActivity(orders);
+    }
+    function setText(id, val) { var el = document.getElementById(id); if (el) el.textContent = val; }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 11: RECENT ACTIVITY FEED
+       Merges persisted admin actions (status changes, product CRUD)
+       with derived "new order placed" events, newest first.
+    ═════════════════════════════════════════════════════════ */
+    function timeAgo(ts) {
+        var s = Math.floor((Date.now() - ts) / 1000);
+        if (s < 60) return "just now";
+        var m = Math.floor(s / 60); if (m < 60) return m + "m ago";
+        var h = Math.floor(m / 60); if (h < 24) return h + "h ago";
+        var d = Math.floor(h / 24); return d + "d ago";
+    }
+    function renderActivity(orders) {
+        var feed = document.getElementById("activity-feed");
+        if (!feed) return;
+
+        // Derived "order placed" events from order history
+        var events = orders.map(function (o, i) {
+            var d = parseDate(o.date);
+            return { icon: "🛒", message: "New order #" + (i + 1) + " placed by " + (o.customerName || "Guest"),
+                     time: d ? d.getTime() : 0 };
+        });
+        // Persisted admin actions
+        events = events.concat(getActivity());
+        // Newest first, cap at 12
+        events.sort(function (a, b) { return b.time - a.time; });
+        events = events.slice(0, 12);
+
+        if (!events.length) {
+            feed.innerHTML = '<p class="admin-empty">No activity yet.</p>';
+            return;
+        }
+        feed.innerHTML = events.map(function (e) {
+            return '<div class="activity-item"><span class="activity-icon">' + (e.icon || "•") + '</span>' +
+                '<span class="activity-msg">' + esc(e.message) + '</span>' +
+                '<span class="activity-time">' + (e.time ? timeAgo(e.time) : "") + '</span></div>';
+        }).join("");
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 6: ORDER MANAGEMENT (search + status filter + edit)
+    ═════════════════════════════════════════════════════════ */
+    var orderFilter = "all";
+    function renderOrders() {
+        var orders = getOrders();
+        var q = (document.getElementById("orders-search").value || "").toLowerCase().trim();
+        var body = document.getElementById("orders-table");
+        var rows = "";
+
+        // orders are sorted newest-first; iterate forward so the newest is at the top.
+        for (var i = 0; i < orders.length; i++) {
+            var o = orders[i] || {};
+            if (orderFilter !== "all" && (o.status || "Awaiting Payment") !== orderFilter) continue;
+            var hay = (orderLabel(o, i) + " " + (o.customerName || "") + " " + (o.customerEmail || "") + " " + (o.transactionRef || "")).toLowerCase();
+            if (q && hay.indexOf(q) === -1) continue;
+
+            var items = Array.isArray(o.items) ? o.items : [];
+            var options = ORDER_STATUSES.map(function (s) {
+                return '<option value="' + s + '"' + ((o.status || "Awaiting Payment") === s ? " selected" : "") + '>' + s + '</option>';
+            }).join("");
+            var payCls = o.paymentStatus === "Paid" ? "pay-paid" : "pay-unpaid";
+
+            rows += '<tr><td><a class="order-link" data-view="' + i + '">' + esc(orderLabel(o, i)) + '</a>' +
+                '<span class="pay-tag ' + payCls + '">' + esc(o.paymentStatus || "Awaiting Payment") + '</span></td>' +
+                '<td><span class="cust-name">' + esc(o.customerName || "Guest") + '</span>' +
+                '<span class="cust-sub">' + esc(o.customerEmail || "") + '</span></td>' +
+                '<td class="muted">' + esc(o.date || "—") + '</td>' +
+                '<td class="muted order-items-cell">' + esc(items.join(", ") || "—") + '</td>' +
+                '<td><strong>' + naira(o.grandTotal) + '</strong></td>' +
+                '<td><select class="status-select ' + statusClass(o.status) + '" data-index="' + i + '">' + options + '</select></td>' +
+                '<td><button class="btn-view" data-view="' + i + '">View</button></td></tr>';
+        }
+        body.innerHTML = rows || '<tr><td colspan="7" class="admin-empty">No matching orders.</td></tr>';
+
+        // Bind status changes
+        body.querySelectorAll(".status-select").forEach(function (sel) {
+            sel.addEventListener("change", function () {
+                updateOrderStatus(parseInt(this.dataset.index, 10), this.value);
+            });
+        });
+        // Bind "View" → order details modal (Section 7)
+        body.querySelectorAll("[data-view]").forEach(function (el) {
+            el.addEventListener("click", function () { openOrderModal(parseInt(this.dataset.view, 10)); });
+        });
+    }
+    // Save status change to localStorage, log it, and refresh all views
+    function updateOrderStatus(index, status) {
+        var orders = getOrders();
+        var target = orders[index];
+        if (!target) return;
+
+        // Primary: persist to MongoDB (the server also syncs paymentStatus + deducts
+        // stock on Paid/Delivered). Falls back to a local update if the API is down.
+        (async function () {
+            try {
+                if (!window.API || !target.id) throw new Error("no API / order id");
+                await ensureAdminToken();
+                await API.orders.updateStatus(target.id, status);
+                await loadOrders();
+            } catch (e) {
+                console.warn("[FTK] Order status update via API failed — updating local cache only.", e);
+                target.status = status;
+                if (status === "Paid" || status === "Delivered") {
+                    target.paymentStatus = "Paid";
+                    if (!target.transactionRef) target.transactionRef = "ADMIN-CONFIRMED";
+                } else if (status === "Awaiting Payment") {
+                    target.paymentStatus = "Awaiting Payment";
+                }
+                saveOrders(orders);
+            }
+            logActivity(statusIcon(status), "Order " + orderLabel(target, index) + " marked " + status);
+            renderOrders(); renderDashboard();
+        })();
+    }
+    function statusIcon(status) {
+        return { "Awaiting Payment": "⏳", "Paid": "💳", "Processing": "🔧", "Shipped": "🚚", "Delivered": "✅", "Cancelled": "🚫" }[status] || "•";
+    }
+
+    /* ════════════════════════════════════════════════════════
+       ORDER DETAILS MODAL (Section 7)
+    ═════════════════════════════════════════════════════════ */
+    window.openOrderModal = function (index) {
+        var o = getOrders()[index];
+        if (!o) return;
+        var items = Array.isArray(o.items) ? o.items : [];
+        var itemsRows = items.length
+            ? items.map(function (it) { return '<li>' + esc(it) + '</li>'; }).join("")
+            : '<li>No item details available</li>';
+
+        document.getElementById("order-modal-title").textContent = "Order " + orderLabel(o, index);
+        document.getElementById("order-modal-body").innerHTML =
+            '<div class="od-status"><span class="status-badge ' + statusClass(o.status) + '">' + esc(o.status || "Awaiting Payment") + '</span></div>' +
+            '<div class="od-grid">' +
+                odRow("Order ID", o.orderId || ("#" + (index + 1))) +
+                odRow("Customer", o.customerName || "Guest") +
+                odRow("Email", o.customerEmail || "—") +
+                odRow("Phone", o.customerPhone || "—") +
+                odRow("Address", o.customerAddress || "—") +
+                odRow("Date", o.date || "—") +
+                odRow("Payment Method", o.paymentMethod || "—") +
+                odRow("Payment Status", o.paymentStatus || "Awaiting Payment") +
+                odRow("Transaction Ref", o.transactionRef || "—") +
+            '</div>' +
+            '<div class="od-section"><p class="od-label">Products Ordered &amp; Quantity</p><ul class="od-items">' + itemsRows + '</ul></div>' +
+            '<div class="od-totals">' +
+                '<div class="od-total-row"><span>Subtotal</span><span>' + naira(o.total) + '</span></div>' +
+                '<div class="od-total-row"><span>Delivery Fee</span><span>' + naira(o.deliveryFee) + '</span></div>' +
+                '<div class="od-total-row grand"><span>Total</span><span>' + naira(o.grandTotal) + '</span></div>' +
+            '</div>';
+
+        var modal = document.getElementById("order-modal");
+        modal.hidden = false; modal.style.display = "flex";
+    };
+    window.closeOrderModal = function () {
+        var modal = document.getElementById("order-modal");
+        modal.hidden = true; modal.style.display = "none";
+    };
+    function odRow(label, value) {
+        return '<div class="od-cell"><span class="od-label">' + label + '</span><span class="od-value">' + esc(value) + '</span></div>';
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 5: CUSTOMER MANAGEMENT (search)
+    ═════════════════════════════════════════════════════════ */
+    function renderCustomers() {
+        var customers = buildCustomers(getOrders());
+        var q = (document.getElementById("customers-search").value || "").toLowerCase().trim();
+        var body = document.getElementById("customers-table");
+        var rows = customers.filter(function (c) {
+            if (!q) return true;
+            return (c.name + " " + c.email + " " + c.phone).toLowerCase().indexOf(q) !== -1;
+        }).sort(function (a, b) { return b.lastIndex - a.lastIndex; }).map(function (c) {
+            return '<tr><td><div class="cust-cell"><div class="customer-avatar sm">' + initial(c.name) + '</div>' +
+                '<span class="cust-name">' + esc(c.name) + '</span></div></td>' +
+                '<td class="muted">' + esc(c.email) + '</td>' +
+                '<td class="muted">' + esc(c.phone) + '</td>' +
+                '<td><strong>' + c.orders + '</strong></td>' +
+                '<td><strong>' + naira(c.spent) + '</strong></td>' +
+                '<td class="muted">' + esc(c.firstDate || "—") + '</td></tr>';
+        }).join("");
+        body.innerHTML = rows || '<tr><td colspan="6" class="admin-empty">No matching customers.</td></tr>';
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 7: PRODUCT MANAGEMENT (CRUD + image upload)
+    ═════════════════════════════════════════════════════════ */
+    var editingProductId = null;
+    var uploadedImage = null;
+
+    var inventoryFilter = "all";   // all | in | low | out
+    var inventoryView = "card";    // card | table
+
+    // Apply the search box + the active filter pill
+    function filteredProducts() {
+        var q = (document.getElementById("products-search").value || "").toLowerCase().trim();
+        return ensureProductMeta().filter(function (p) {
+            var matchQ = !q || (p.name + " " + (p.sku || "") + " " + (p.category || "") + " " + (p.description || "")).toLowerCase().indexOf(q) !== -1;
+            var matchF = inventoryFilter === "all" || stockStatus(p.stock).key === inventoryFilter;
+            return matchQ && matchF;
+        });
+    }
+
+    // Master entry point — keeps the original name so existing callers still work
+    function renderProducts() {
+        renderInventorySummary();
+        renderProductCards();
+        renderProductTable();
+        renderInventoryActivity();
+        // Toggle which view is visible
+        document.getElementById("products-grid").style.display = inventoryView === "card" ? "" : "none";
+        document.getElementById("products-table-panel").style.display = inventoryView === "table" ? "" : "none";
+        if (document.getElementById("section-products").classList.contains("active")) renderInventoryCharts();
+    }
+
+    // 1. Summary cards
+    function renderInventorySummary() {
+        // Summary reflects the LIVE catalogue (archived products excluded).
+        var products = ensureProductMeta().filter(function (p) { return p.status !== "archived"; });
+        var inCount = 0, lowCount = 0, outCount = 0, value = 0;
+        products.forEach(function (p) {
+            var s = stockStatus(p.stock).key;
+            if (s === "in") inCount++; else if (s === "low") lowCount++; else outCount++;
+            value += (Number(p.price) || 0) * (Number(p.stock) || 0);
+        });
+        setText("inv-total", products.length);
+        setText("inv-instock", inCount);
+        setText("inv-low", lowCount);
+        setText("inv-out", outCount);
+        setText("inv-value", naira(value));
+    }
+
+    // Card view
+    function renderProductCards() {
+        var grid = document.getElementById("products-grid");
+        var cards = filteredProducts().map(function (p) {
+            var st = stockStatus(p.stock);
+            var archived = p.status === "archived";
+            var archBadge = archived ? '<span class="archived-badge">Archived</span>' : '';
+            var archAction = archived
+                ? '<button class="btn-restore" data-restore="' + esc(p.id) + '">Restore</button>'
+                : '<button class="btn-archive" data-archive="' + esc(p.id) + '">Archive</button>';
+            return '<div class="admin-product-card' + (archived ? ' is-archived' : '') + '">' +
+                '<div class="apc-image"><img src="' + productImg(p.image) + '" alt="' + esc(p.name) + '" onerror="ftkImgFallback(this)">' +
+                '<span class="stock-badge ' + st.cls + '">' + st.label + '</span>' + archBadge + '</div>' +
+                '<div class="apc-body"><h3>' + esc(p.name) + '</h3>' +
+                '<p class="apc-sku">' + esc(p.sku) + ' · ' + esc(p.category) + '</p>' +
+                '<div class="apc-meta"><span class="apc-price">' + naira(p.price) + '</span>' +
+                '<span class="apc-stock">Stock: <strong>' + (Number(p.stock) || 0) + '</strong></span></div>' +
+                '<div class="stock-controls"><button class="stk-btn" data-add="' + esc(p.id) + '">+ Stock</button>' +
+                '<button class="stk-btn minus" data-remove="' + esc(p.id) + '">− Stock</button></div>' +
+                '<div class="apc-actions"><button class="btn-edit" data-id="' + esc(p.id) + '">Edit</button>' +
+                archAction +
+                '<button class="btn-del" data-id="' + esc(p.id) + '">Delete</button></div></div></div>';
+        }).join("");
+        grid.innerHTML = cards || '<p class="admin-empty">No products found.</p>';
+        bindProductActions(grid);
+    }
+
+    // 3. Table view
+    function renderProductTable() {
+        var body = document.getElementById("products-table");
+        var rows = filteredProducts().map(function (p) {
+            var st = stockStatus(p.stock);
+            var hasV = Array.isArray(p.variants) && p.variants.length;
+            var unitsLine = hasV
+                ? '<div class="muted pm-units-line">' + esc(p.variants.map(function (v) { return v.label; }).join(" · ")) + '</div>'
+                : '';
+            var priceCell = hasV ? 'From ' + naira(p.price) : naira(p.price);
+            var archived = p.status === "archived";
+            var archAction = archived
+                ? '<button class="btn-restore" data-restore="' + esc(p.id) + '">Restore</button>'
+                : '<button class="btn-archive" data-archive="' + esc(p.id) + '">Archive</button>';
+            return '<tr' + (archived ? ' class="is-archived"' : '') + '>' +
+                '<td><img class="inv-thumb" src="' + productImg(p.image) + '" alt="" onerror="ftkImgFallback(this)"></td>' +
+                '<td><span class="cust-name">' + esc(p.name) + '</span>' + (archived ? ' <span class="archived-badge">Archived</span>' : '') + unitsLine + '</td>' +
+                '<td class="muted">' + esc(p.sku) + '</td>' +
+                '<td class="muted">' + esc(p.category) + '</td>' +
+                '<td><strong>' + priceCell + '</strong></td>' +
+                '<td><strong>' + (Number(p.stock) || 0) + '</strong></td>' +
+                '<td><span class="stock-badge ' + st.cls + '">' + st.label + '</span></td>' +
+                '<td><div class="inv-row-actions">' +
+                    '<button class="stk-btn" data-add="' + esc(p.id) + '">+</button>' +
+                    '<button class="stk-btn minus" data-remove="' + esc(p.id) + '">−</button>' +
+                    '<button class="btn-edit" data-id="' + esc(p.id) + '">Edit</button>' +
+                    archAction +
+                    '<button class="btn-del" data-id="' + esc(p.id) + '">Del</button>' +
+                '</div></td></tr>';
+        }).join("");
+        body.innerHTML = rows || '<tr><td colspan="8" class="admin-empty">No products found.</td></tr>';
+        bindProductActions(body);
+    }
+
+    function bindProductActions(root) {
+        root.querySelectorAll(".btn-edit").forEach(function (b) {
+            b.addEventListener("click", function () { openProductModal(this.dataset.id); });
+        });
+        root.querySelectorAll(".btn-del").forEach(function (b) {
+            b.addEventListener("click", function () { deleteProduct(this.dataset.id); });
+        });
+        root.querySelectorAll("[data-add]").forEach(function (b) {
+            b.addEventListener("click", function () { adjustStock(this.dataset.add, +1); });
+        });
+        root.querySelectorAll("[data-remove]").forEach(function (b) {
+            b.addEventListener("click", function () { adjustStock(this.dataset.remove, -1); });
+        });
+        root.querySelectorAll("[data-archive]").forEach(function (b) {
+            b.addEventListener("click", function () { archiveProduct(this.dataset.archive); });
+        });
+        root.querySelectorAll("[data-restore]").forEach(function (b) {
+            b.addEventListener("click", function () { restoreProduct(this.dataset.restore); });
+        });
+    }
+
+    // Archive / restore — soft status change. Archived products vanish from the
+    // storefront but are KEPT so historical orders/receipts/analytics stay intact.
+    async function setProductStatus(id, status) {
+        var product = getProducts().filter(function (p) { return p.id === id; })[0];
+        try {
+            if (!window.API) throw new Error("API client not loaded");
+            await ensureAdminToken();
+            await API.products.update(id, { status: status });
+            await loadProducts();
+        } catch (e) {
+            console.warn("Status change via API failed — updating local cache only.", e);
+            saveProducts(getProducts().map(function (p) { return p.id === id ? Object.assign({}, p, { status: status }) : p; }));
+        }
+        if (product) logActivity(status === "archived" ? "🗄️" : "♻️", (status === "archived" ? "Product archived: " : "Product restored: ") + product.name);
+        renderProducts();
+    }
+    function archiveProduct(id) {
+        if (!confirm("Archive this product? It will be hidden from the storefront but kept for historical orders.")) return;
+        setProductStatus(id, "archived");
+    }
+    function restoreProduct(id) { setProductStatus(id, "active"); }
+
+    // 5. Stock controls (+ add / − remove). Prompts for an amount.
+    function adjustStock(id, sign) {
+        var p = getProducts().filter(function (x) { return x.id === id; })[0];
+        if (!p) return;
+        var raw = prompt((sign > 0 ? "Add how many units to " : "Remove how many units from ") + p.name + "?", "10");
+        if (raw === null) return;
+        var amt = Math.abs(parseInt(raw, 10));
+        if (!amt) return;
+        var before = Number(p.stock) || 0;
+        var after = Math.max(0, before + sign * amt);
+        (async function () {
+            try {
+                if (!window.API) throw new Error("API client not loaded");
+                await ensureAdminToken();
+                await API.products.update(id, { stock: after });
+                await loadProducts();
+            } catch (e) {
+                console.warn("Stock update via API failed — updating local cache only.", e);
+                p.stock = after; saveProducts(getProducts());
+            }
+            logActivity(sign > 0 ? "📈" : "📉",
+                (sign > 0 ? "Stock increased" : "Stock reduced") + ": " + p.name + " (" + before + " → " + after + ")");
+            renderProducts();
+        })();
+    }
+
+    // 9. Inventory-only activity feed (filters the shared activity log)
+    function renderInventoryActivity() {
+        var box = document.getElementById("inventory-activity");
+        if (!box) return;
+        var inv = getActivity().filter(function (e) {
+            return /product|stock/i.test(e.message);
+        }).slice(0, 10);
+        if (!inv.length) { box.innerHTML = '<p class="admin-empty">No inventory activity yet.</p>'; return; }
+        box.innerHTML = inv.map(function (e) {
+            return '<div class="activity-item"><span class="activity-icon">' + (e.icon || "•") + '</span>' +
+                '<span class="activity-msg">' + esc(e.message) + '</span>' +
+                '<span class="activity-time">' + (e.time ? timeAgo(e.time) : "") + '</span></div>';
+        }).join("");
+    }
+
+    /* ── 11. CSV export ── */
+    function downloadCSV(filename, rows) {
+        var csv = rows.map(function (r) {
+            return r.map(function (cell) {
+                var v = String(cell == null ? "" : cell).replace(/"/g, '""');
+                return /[",\n]/.test(v) ? '"' + v + '"' : v;
+            }).join(",");
+        }).join("\n");
+        var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+    window.exportProductsCSV = function () {
+        var rows = [["SKU", "Name", "Category", "Price", "Stock", "Description"]];
+        ensureProductMeta().forEach(function (p) {
+            rows.push([p.sku, p.name, p.category, Number(p.price) || 0, Number(p.stock) || 0, p.description || ""]);
+        });
+        downloadCSV("ftk-products.csv", rows);
+    };
+    window.exportInventoryCSV = function () {
+        var rows = [["SKU", "Name", "Category", "Stock", "Status", "Unit Price", "Inventory Value"]];
+        ensureProductMeta().forEach(function (p) {
+            var stock = Number(p.stock) || 0, price = Number(p.price) || 0;
+            rows.push([p.sku, p.name, p.category, stock, stockStatus(stock).label, price, price * stock]);
+        });
+        downloadCSV("ftk-inventory.csv", rows);
+    };
+
+    /* ── 10. Inventory charts ── */
+    function renderInventoryCharts() {
+        if (typeof Chart === "undefined") return;
+        var products = ensureProductMeta();
+
+        // Products by category (count)
+        var catCounts = {};
+        products.forEach(function (p) { catCounts[p.category] = (catCounts[p.category] || 0) + 1; });
+        var catLabels = Object.keys(catCounts);
+        drawChart("chart-category", "category", {
+            type: "doughnut", labels: catLabels, data: catLabels.map(function (c) { return catCounts[c]; }),
+            label: "Products", palette: ["#1f7a3f", "#f4a261", "#2563eb", "#7c3aed", "#c0392b", "#27a352"]
+        });
+
+        // Stock levels per product
+        drawChart("chart-stock", "stock", {
+            type: "bar", labels: products.map(function (p) { return p.name; }),
+            data: products.map(function (p) { return Number(p.stock) || 0; }),
+            label: "Units in stock", color: "#1f7a3f", fill: "rgba(31,122,63,0.15)"
+        });
+
+        // Inventory value per product
+        drawChart("chart-invvalue", "invvalue", {
+            type: "bar", labels: products.map(function (p) { return p.name; }),
+            data: products.map(function (p) { return (Number(p.price) || 0) * (Number(p.stock) || 0); }),
+            label: "Inventory value (₦)", color: "#f4a261", fill: "rgba(244,162,97,0.2)"
+        });
+    }
+
+    /* ── Variant editor rows (each product defines its own units) ── */
+    function makeVariantRow(label, price, stock) {
+        var row = document.createElement("div");
+        row.className = "pm-variant-row";
+        row.innerHTML =
+            '<input type="text" class="admin-input pm-v-label" placeholder="e.g. 5kg / Tray / Carton" value="' + esc(label || "") + '">' +
+            '<input type="number" class="admin-input pm-v-price" placeholder="0" min="0" value="' + (price != null && price !== "" ? Number(price) : "") + '">' +
+            '<input type="number" class="admin-input pm-v-stock" placeholder="0" min="0" value="' + (stock != null && stock !== "" ? Number(stock) : "") + '">' +
+            '<button type="button" class="pm-variant-del" title="Remove unit" aria-label="Remove unit">✕</button>';
+        row.querySelector(".pm-variant-del").addEventListener("click", function () {
+            row.parentNode.removeChild(row);
+            syncVariantUI();
+        });
+        row.querySelector(".pm-v-stock").addEventListener("input", updatePmTotalStock);
+        return row;
+    }
+    window.addVariantRow = function (label, price, stock) {
+        var rows = document.getElementById("pm-variants-rows");
+        rows.appendChild(makeVariantRow(label, price, stock));
+        syncVariantUI();
+    };
+    function renderVariantRows(variants) {
+        var rows = document.getElementById("pm-variants-rows");
+        rows.innerHTML = "";
+        (variants || []).forEach(function (v) { rows.appendChild(makeVariantRow(v.label, v.price, v.stock)); });
+        syncVariantUI();
+    }
+    // Read the variant rows the admin filled in → [{label, price, stock}] (drops blank labels).
+    function collectVariantRows() {
+        return Array.prototype.map.call(document.querySelectorAll("#pm-variants-rows .pm-variant-row"), function (row) {
+            return {
+                label: row.querySelector(".pm-v-label").value.trim(),
+                price: Number(row.querySelector(".pm-v-price").value) || 0,
+                stock: Number(row.querySelector(".pm-v-stock").value) || 0
+            };
+        }).filter(function (v) { return v.label; });
+    }
+    // Hide the legacy base price/stock fields whenever explicit variants exist.
+    function syncVariantUI() {
+        var hasRows = document.querySelectorAll("#pm-variants-rows .pm-variant-row").length > 0;
+        var legacy = document.getElementById("pm-legacy-pricing");
+        if (legacy) legacy.classList.toggle("pm-hidden", hasRows);
+        updatePmTotalStock();
+    }
+    // Live total stock = sum of variant stock (display aid; server still derives the authoritative value).
+    function updatePmTotalStock() {
+        var rows = document.querySelectorAll("#pm-variants-rows .pm-variant-row");
+        var total = 0;
+        rows.forEach(function (r) { var s = r.querySelector(".pm-v-stock"); total += s ? (Number(s.value) || 0) : 0; });
+        var el = document.getElementById("pm-total-stock");
+        if (el) el.textContent = total;
+    }
+    // Collapsible image: thumbnail by default, expand on click.
+    window.togglePmPreview = function () {
+        var img = document.getElementById("pm-preview");
+        if (!img || img.hidden) return;
+        var ex = img.classList.toggle("expanded");
+        img.setAttribute("aria-expanded", ex ? "true" : "false");
+    };
+    // ESC closes the product modal.
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+            var m = document.getElementById("product-modal");
+            if (m && !m.hidden) closeProductModal();
+        }
+    });
+
+    // ── SEO / Shipping helpers (UI now; values wired into the save payload but
+    //    not persisted until a backend migration adds these schema fields) ──
+    var _pmSlugTouched = false;
+    function slugify(s) {
+        return String(s || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    }
+    function pmCount(id, n, max) {
+        var el = document.getElementById(id);
+        if (el) { el.textContent = n + "/" + max; el.classList.toggle("over", n > max); }
+    }
+    function setupProductModalExtras() {
+        var name = document.getElementById("pm-name");
+        var slug = document.getElementById("pm-seo-slug");
+        var t = document.getElementById("pm-seo-title");
+        var d = document.getElementById("pm-seo-desc");
+        if (!name || !slug) return;
+        name.addEventListener("input", function () { if (!_pmSlugTouched) slug.value = slugify(name.value); });
+        slug.addEventListener("input", function () { _pmSlugTouched = true; slug.value = slug.value.toLowerCase().replace(/[^a-z0-9-]/g, ""); });
+        if (t) t.addEventListener("input", function () { pmCount("pm-seo-title-count", t.value.length, 60); });
+        if (d) d.addEventListener("input", function () { pmCount("pm-seo-desc-count", d.value.length, 160); });
+    }
+    if (document.getElementById("pm-name")) setupProductModalExtras();
+    else document.addEventListener("DOMContentLoaded", setupProductModalExtras);
+
+    window.openProductModal = function (id) {
+        editingProductId = id || null;
+        uploadedImage = null;
+        var title = document.getElementById("product-modal-title");
+        var preview = document.getElementById("pm-preview");
+        if (id) {
+            var p = getProducts().filter(function (x) { return x.id === id; })[0];
+            if (!p) return;
+            title.textContent = "Edit Product";
+            document.getElementById("pm-name").value     = p.name;
+            document.getElementById("pm-price").value    = p.price;
+            document.getElementById("pm-stock").value    = p.stock;
+            document.getElementById("pm-category").value = p.category || "";
+            document.getElementById("pm-sku").value      = p.sku || "";
+            document.getElementById("pm-desc").value     = p.description || "";
+            renderVariantRows(p.variants || []);
+            document.getElementById("pm-status").value = p.status || "active";
+            document.getElementById("pm-seo-title").value = p.seoTitle || "";
+            document.getElementById("pm-seo-desc").value  = p.seoDescription || "";
+            document.getElementById("pm-seo-slug").value  = p.slug || slugify(p.name);
+            document.getElementById("pm-ship-weight").value = (p.shippingWeight != null ? p.shippingWeight : "");
+            _pmSlugTouched = !!p.slug;
+            preview.src = p.image || ""; preview.hidden = !p.image;
+            preview.classList.remove("expanded"); preview.setAttribute("aria-expanded", "false");
+        } else {
+            title.textContent = "Add Product";
+            ["pm-name","pm-price","pm-stock","pm-category","pm-desc"].forEach(function (f) { document.getElementById(f).value = ""; });
+            document.getElementById("pm-sku").value = nextSku(); // preview the SKU that will be assigned
+            document.getElementById("pm-image").value = "";
+            renderVariantRows([]);
+            document.getElementById("pm-status").value = "active";
+            ["pm-seo-title","pm-seo-desc","pm-seo-slug","pm-ship-weight"].forEach(function (f) { var e = document.getElementById(f); if (e) e.value = ""; });
+            _pmSlugTouched = false;
+            preview.hidden = true;
+            preview.classList.remove("expanded"); preview.setAttribute("aria-expanded", "false");
+        }
+        var modal = document.getElementById("product-modal");
+        modal.hidden = false;
+        modal.style.display = "flex";
+        updatePmTotalStock();
+        // collapse advanced sections + refresh SEO counters each open
+        document.querySelectorAll("#product-modal details.pm-section").forEach(function (dd) { dd.open = false; });
+        pmCount("pm-seo-title-count", (document.getElementById("pm-seo-title").value || "").length, 60);
+        pmCount("pm-seo-desc-count", (document.getElementById("pm-seo-desc").value || "").length, 160);
+        var firstField = document.getElementById("pm-name");
+        if (firstField) firstField.focus();
+    };
+    window.closeProductModal = function () {
+        var modal = document.getElementById("product-modal");
+        modal.hidden = true;
+        modal.style.display = "none";
+    };
+
+    // Downscale + recompress uploaded images to a base64 JPEG/PNG data URL before
+    // storage. Keeps documents small (fits the 5mb API limit + localStorage), makes
+    // the image self-contained so it survives refresh/restart, and previews instantly.
+    var IMG_MAX_DIM = 900;       // longest edge, px
+    var IMG_JPEG_QUALITY = 0.82;
+    window.previewProductImage = function (e) {
+        var file = e.target.files[0];
+        if (!file) return;
+        if (!/^image\//.test(file.type)) { alert("Please choose an image file."); e.target.value = ""; return; }
+
+        var reader = new FileReader();
+        reader.onload = function (ev) {
+            var img = new Image();
+            img.onload = function () {
+                var w = img.naturalWidth, h = img.naturalHeight;
+                var scale = Math.min(1, IMG_MAX_DIM / Math.max(w, h));
+                var cw = Math.round(w * scale), ch = Math.round(h * scale);
+                var canvas = document.createElement("canvas");
+                canvas.width = cw; canvas.height = ch;
+                canvas.getContext("2d").drawImage(img, 0, 0, cw, ch);
+                // PNG keeps transparency; everything else is recompressed to JPEG.
+                var isPng = /^data:image\/png/.test(ev.target.result);
+                try {
+                    uploadedImage = isPng ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", IMG_JPEG_QUALITY);
+                } catch (err) {
+                    uploadedImage = ev.target.result; // fallback to the original if canvas export fails
+                }
+                var preview = document.getElementById("pm-preview");
+                preview.src = uploadedImage; preview.hidden = false;
+            };
+            img.onerror = function () {
+                uploadedImage = ev.target.result;
+                var preview = document.getElementById("pm-preview");
+                preview.src = uploadedImage; preview.hidden = false;
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    window.saveProduct = async function () {
+        var name     = document.getElementById("pm-name").value.trim();
+        var price    = Number(document.getElementById("pm-price").value);
+        var stock    = Number(document.getElementById("pm-stock").value);
+        var category = document.getElementById("pm-category").value.trim() || "General";
+        var desc     = document.getElementById("pm-desc").value.trim();
+        if (!name) { alert("Product name is required."); return; }
+
+        // Universal variants: when present, product price = lowest unit price ("From"),
+        // total stock = sum of unit stock. Otherwise fall back to the base price/stock.
+        var variants = collectVariantRows();
+        if (variants.length) {
+            price = Math.min.apply(null, variants.map(function (v) { return v.price; }));
+            stock = variants.reduce(function (s, v) { return s + v.stock; }, 0);
+        }
+
+        var statusVal = document.getElementById("pm-status") ? document.getElementById("pm-status").value : "active";
+        var gv = function (id) { var e = document.getElementById(id); return e ? e.value : ""; };
+        var payload = {
+            name: name, category: category, price: price || 0,
+            stock: isNaN(stock) ? 0 : stock, description: desc,
+            variants: variants, status: statusVal,
+            // Future-safe: persisted once the backend migration adds these fields.
+            seoTitle: gv("pm-seo-title"), seoDescription: gv("pm-seo-desc"),
+            slug: gv("pm-seo-slug"), shippingWeight: Number(gv("pm-ship-weight")) || 0
+        };
+
+        // Primary path: persist to MongoDB via the API.
+        try {
+            if (!window.API) throw new Error("API client not loaded");
+            await ensureAdminToken();
+            if (editingProductId) {
+                if (uploadedImage) payload.image = uploadedImage;
+                await API.products.update(editingProductId, payload);
+                logActivity("✏️", "Product updated: " + name);
+            } else {
+                payload.image = uploadedImage || ""; // empty → branded placeholder at render time
+                await API.products.create(payload);
+                logActivity("🆕", "Product added: " + name);
+            }
+            await loadProducts();
+            closeProductModal();
+            renderProducts();
+            return;
+        } catch (e) {
+            console.warn("Product save via API failed — saving locally only.", e);
+            alert("Saved locally only — couldn't reach the backend. This product won't appear in the storefront until the backend save succeeds.");
+        }
+
+        // Fallback path: local cache (keeps admin working offline).
+        var products = getProducts().slice();
+        if (editingProductId) {
+            products = products.map(function (p) {
+                if (p.id !== editingProductId) return p;
+                return { id: p.id, name: name, sku: p.sku || nextSku(products), category: category,
+                         price: price || 0, stock: isNaN(stock) ? 0 : stock, variants: variants,
+                         description: desc, image: uploadedImage || p.image, status: p.status || "active" };
+            });
+        } else {
+            products.push({ id: "p-" + Date.now(), name: name, sku: nextSku(products), category: category,
+                price: price || 0, stock: isNaN(stock) ? 0 : stock, variants: variants, description: desc,
+                image: uploadedImage || "", status: "active" });
+        }
+        saveProducts(products);
+        closeProductModal();
+        renderProducts();
+    };
+
+    function deleteProduct(id) {
+        var product = getProducts().filter(function (p) { return p.id === id; })[0];
+        if (!confirm("Delete this product? This cannot be undone.")) return;
+        (async function () {
+            try {
+                if (!window.API) throw new Error("API client not loaded");
+                await ensureAdminToken();
+                await API.products.remove(id);
+                await loadProducts();
+            } catch (e) {
+                console.warn("Delete via API failed — removing from local cache only.", e);
+                saveProducts(getProducts().filter(function (p) { return p.id !== id; }));
+            }
+            if (product) logActivity("🗑️", "Product deleted: " + product.name);
+            renderProducts();
+        })();
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 4: CHARTS (Chart.js — last 7 days)
+    ═════════════════════════════════════════════════════════ */
+    var charts = {};
+    function last7Days() {
+        var days = [], now = new Date();
+        for (var i = 6; i >= 0; i--) {
+            var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+            days.push({ key: dayKey(d), label: d.toLocaleDateString(undefined, { weekday: "short", day: "numeric" }), date: d });
+        }
+        return days;
+    }
+    function renderCharts() {
+        if (typeof Chart === "undefined") return;
+        var orders = getOrders();
+        var days = last7Days();
+        var revByDay = {}, ordByDay = {};
+        days.forEach(function (d) { revByDay[d.key] = 0; ordByDay[d.key] = 0; });
+
+        orders.forEach(function (o) {
+            var d = parseDate(o.date); if (!d) return;
+            var k = dayKey(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+            if (k in revByDay) { revByDay[k] += (Number(o.grandTotal) || 0); ordByDay[k] += 1; }
+        });
+
+        // Customer growth: cumulative unique customers by first-order date
+        var firstSeen = {};
+        orders.forEach(function (o) {
+            var key = (o.customerEmail || o.customerPhone || o.customerName || "").toLowerCase();
+            var d = parseDate(o.date); if (!key || !d) return;
+            if (!firstSeen[key] || d < firstSeen[key]) firstSeen[key] = d;
+        });
+        var growth = days.map(function (day) {
+            var count = 0;
+            Object.keys(firstSeen).forEach(function (k) {
+                var fd = new Date(firstSeen[k].getFullYear(), firstSeen[k].getMonth(), firstSeen[k].getDate());
+                if (fd <= day.date) count++;
+            });
+            return count;
+        });
+
+        var labels = days.map(function (d) { return d.label; });
+        drawChart("chart-revenue", "revenue", {
+            type: "bar", labels: labels, data: days.map(function (d) { return revByDay[d.key]; }),
+            label: "Revenue (₦)", color: "#1f7a3f", fill: "rgba(31,122,63,0.15)"
+        });
+        drawChart("chart-orders", "orders", {
+            type: "bar", labels: labels, data: days.map(function (d) { return ordByDay[d.key]; }),
+            label: "Orders", color: "#f4a261", fill: "rgba(244,162,97,0.2)"
+        });
+        drawChart("chart-customers", "customers", {
+            type: "line", labels: labels, data: growth,
+            label: "Total Customers", color: "#2563eb", fill: "rgba(37,99,235,0.12)"
+        });
+    }
+    function drawChart(canvasId, key, cfg) {
+        var ctx = document.getElementById(canvasId);
+        if (!ctx) return;
+        if (charts[key]) charts[key].destroy();
+
+        if (cfg.type === "doughnut") {
+            charts[key] = new Chart(ctx, {
+                type: "doughnut",
+                data: { labels: cfg.labels, datasets: [{
+                    data: cfg.data, backgroundColor: cfg.palette, borderWidth: 2, borderColor: "#fff"
+                }]},
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: "bottom", labels: { color: "#666", padding: 14 } } }
+                }
+            });
+            return;
+        }
+
+        charts[key] = new Chart(ctx, {
+            type: cfg.type,
+            data: { labels: cfg.labels, datasets: [{
+                label: cfg.label, data: cfg.data,
+                backgroundColor: cfg.type === "line" ? cfg.fill : cfg.color,
+                borderColor: cfg.color, borderWidth: 2, borderRadius: 6,
+                fill: cfg.type === "line", tension: 0.35, pointRadius: 4, pointBackgroundColor: cfg.color
+            }]},
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { color: "#999" }, grid: { color: "#f0f0f0" } },
+                          x: { ticks: { color: "#999" }, grid: { display: false } } }
+            }
+        });
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SECTION 8: GLOBAL SEARCH (orders + customers + products)
+    ═════════════════════════════════════════════════════════ */
+    function setupGlobalSearch() {
+        var input = document.getElementById("global-search");
+        var panel = document.getElementById("global-results");
+        input.addEventListener("input", function () {
+            var q = this.value.toLowerCase().trim();
+            if (!q) { panel.hidden = true; panel.innerHTML = ""; return; }
+
+            var orders = getOrders(), customers = buildCustomers(orders), products = getProducts();
+            var oMatch = [], cMatch = [], pMatch = [];
+
+            orders.forEach(function (o, i) {
+                if (("#" + (i + 1) + " " + (o.customerName || "") + " " + (o.customerEmail || "")).toLowerCase().indexOf(q) !== -1)
+                    oMatch.push({ i: i, o: o });
+            });
+            customers.forEach(function (c) {
+                if ((c.name + " " + c.email + " " + c.phone).toLowerCase().indexOf(q) !== -1) cMatch.push(c);
+            });
+            products.forEach(function (p) {
+                if ((p.name + " " + (p.description || "")).toLowerCase().indexOf(q) !== -1) pMatch.push(p);
+            });
+
+            var html = "";
+            if (oMatch.length) {
+                html += '<div class="gr-group"><p class="gr-title">Orders</p>' + oMatch.slice(0, 4).map(function (m) {
+                    return '<div class="gr-item" data-go="orders"><span>#' + (m.i + 1) + ' · ' + esc(m.o.customerName || "Guest") + '</span><span class="gr-meta">' + naira(m.o.grandTotal) + '</span></div>';
+                }).join("") + '</div>';
+            }
+            if (cMatch.length) {
+                html += '<div class="gr-group"><p class="gr-title">Customers</p>' + cMatch.slice(0, 4).map(function (c) {
+                    return '<div class="gr-item" data-go="customers"><span>' + esc(c.name) + '</span><span class="gr-meta">' + esc(c.email) + '</span></div>';
+                }).join("") + '</div>';
+            }
+            if (pMatch.length) {
+                html += '<div class="gr-group"><p class="gr-title">Products</p>' + pMatch.slice(0, 4).map(function (p) {
+                    return '<div class="gr-item" data-go="products"><span>' + esc(p.name) + '</span><span class="gr-meta">' + naira(p.price) + '</span></div>';
+                }).join("") + '</div>';
+            }
+            panel.innerHTML = html || '<div class="gr-empty">No results found.</div>';
+            panel.hidden = false;
+
+            panel.querySelectorAll(".gr-item").forEach(function (item) {
+                item.addEventListener("click", function () {
+                    switchSection(this.dataset.go);
+                    panel.hidden = true; input.value = "";
+                });
+            });
+        });
+        // Close results when clicking outside
+        document.addEventListener("click", function (e) {
+            if (!e.target.closest(".global-search-wrap")) panel.hidden = true;
+        });
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SETTINGS
+    ═════════════════════════════════════════════════════════ */
+    window.saveStoreSettings = function () {
+        localStorage.setItem("ftk_store_name", document.getElementById("set-store-name").value.trim());
+        localStorage.setItem("ftk_paystack_key", document.getElementById("set-paystack-key").value.trim());
+        flash("settings-saved");
+    };
+    window.changeAdminPassword = function () {
+        var nw = document.getElementById("set-new-password").value.trim();
+        if (nw.length < 12) { alert("New password must be at least 12 characters."); return; }
+        var cur = prompt("Enter your CURRENT admin password to confirm this change:");
+        if (!cur) return;
+        API.adminChangePassword(cur, nw).then(function () {
+            document.getElementById("set-new-password").value = "";
+            flash("password-saved");
+            alert("Password changed.");
+        }).catch(function (e) { alert(e.message || "Could not change password."); });
+    };
+    window.clearProducts = function () {
+        if (!confirm("Reset products to the default catalogue?")) return;
+        localStorage.removeItem("ftk_products");
+        renderProducts(); renderDashboard();
+    };
+    window.clearOrders = function () {
+        if (!confirm("Delete ALL orders? This clears order history and cannot be undone.")) return;
+        localStorage.removeItem("orderHistory");
+        renderEverything();
+    };
+    function flash(id) { var el = document.getElementById(id); el.hidden = false; setTimeout(function () { el.hidden = true; }, 2000); }
+
+    function loadSettings() {
+        document.getElementById("set-store-name").value   = localStorage.getItem("ftk_store_name") || "Farm To Kitchen";
+        document.getElementById("set-paystack-key").value = localStorage.getItem("ftk_paystack_key") || "";
+    }
+
+    /* ════════════════════════════════════════════════════════
+       INIT
+    ═════════════════════════════════════════════════════════ */
+    function renderEverything() {
+        renderDashboard(); renderOrders(); renderCustomers(); renderProducts();
+        if (document.getElementById("section-analytics").classList.contains("active")) renderCharts();
+    }
+
+    function initApp() {
+        ensureOrderStatuses();
+        setupNav();
+        setupGlobalSearch();
+        loadSettings();
+
+        // Section-specific search bindings (Sections 5, 6, 7)
+        document.getElementById("orders-search").addEventListener("input", renderOrders);
+        document.getElementById("customers-search").addEventListener("input", renderCustomers);
+        document.getElementById("products-search").addEventListener("input", renderProducts);
+
+        // Order status filter pills (Section 6)
+        document.querySelectorAll("#orders-filters .filter-pill").forEach(function (pill) {
+            pill.addEventListener("click", function () {
+                document.querySelectorAll("#orders-filters .filter-pill").forEach(function (p) { p.classList.remove("active"); });
+                this.classList.add("active");
+                orderFilter = this.dataset.filter;
+                renderOrders();
+            });
+        });
+
+        // Inventory filter pills (In / Low / Out of stock)
+        document.querySelectorAll("#inventory-filters .filter-pill").forEach(function (pill) {
+            pill.addEventListener("click", function () {
+                document.querySelectorAll("#inventory-filters .filter-pill").forEach(function (p) { p.classList.remove("active"); });
+                this.classList.add("active");
+                inventoryFilter = this.dataset.filter;
+                renderProducts();
+            });
+        });
+
+        // Inventory card / table view toggle
+        document.querySelectorAll("#view-toggle .view-btn").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                document.querySelectorAll("#view-toggle .view-btn").forEach(function (b) { b.classList.remove("active"); });
+                this.classList.add("active");
+                inventoryView = this.dataset.view;
+                renderProducts();
+            });
+        });
+
+        primeCacheFromLocal();   // instant render from local cache (avoids an empty flash)
+        renderEverything();
+        loadProducts().then(function () { renderProducts(); }); // products endpoint is public
+
+        // Authenticate with the BACKEND admin user (not the gate password), then load
+        // orders from MongoDB. If anything falls back to localStorage, show a banner —
+        // never fail silently.
+        ensureAdminToken().then(function (authed) {
+            loadOrders().then(function (source) {
+                renderOrders(); renderDashboard(); renderCustomers();
+                if (source === "api") hideBackendWarning(); else showBackendWarning(authed);
+            });
+        });
+    }
+
+    // Boot — if a valid admin session token is already present, open the panel;
+    // otherwise show the sign-in flow.
+    if (isAuthed()) unlock();
+    else { agShow("ag-login"); document.getElementById("ag-email").focus(); }
+})();
+</script>
+
+</body>
+</html>

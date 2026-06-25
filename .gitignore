@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Secrets / environment
+.env
+*.env
+!.env.example
+
+# Database backups (local snapshots)
+backups/
+
+# Logs & OS noise
+*.log
+.DS_Store
+
+# Pre-phase file snapshots
+*.pre-phase3

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Email — Farm To Kitchen</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .vbox { max-width: 460px; margin: 8vh auto; background: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.1); padding: 36px 30px; text-align: center; font-family: Arial, Helvetica, sans-serif; }
+    .vbox .vico { font-size: 52px; margin-bottom: 8px; }
+    .vbox h1 { font-size: 22px; margin: 6px 0 10px; color: #1a1a1a; }
+    .vbox p { color: #6a6a6a; font-size: 14.5px; line-height: 1.55; margin: 0 0 18px; }
+    .vbox .ok { color: #0b7a34; } .vbox .warn { color: #b9770e; } .vbox .bad { color: #c0392b; }
+    .vbtn { display: inline-block; background: linear-gradient(135deg,#1f7a3f,#27a352); color: #fff; border: none; padding: 12px 24px; border-radius: 9px; font-weight: 700; font-size: 14px; cursor: pointer; text-decoration: none; }
+    .vbtn.secondary { background: #f1faf3; color: #0b7a34; border: 1px solid #0b7a34; }
+    .vcode { margin-top: 22px; border-top: 1px solid #eee; padding-top: 18px; }
+    .vcode input { width: 100%; box-sizing: border-box; padding: 11px 12px; border: 1.5px solid #e8e8e8; border-radius: 8px; font-size: 15px; margin-bottom: 10px; }
+    .vmuted { font-size: 12px; color: #9aa1aa; }
+    .vhide { display: none; }
+  </style>
+</head>
+<body style="background:#f6fbf7">
+  <div class="vbox">
+    <div id="v-ico" class="vico">⏳</div>
+    <h1 id="v-title">Verifying…</h1>
+    <p id="v-msg">Please wait while we verify your email.</p>
+    <div id="v-actions"></div>
+
+    <!-- Manual 6-digit code entry (shown for expired/invalid/no-token states) -->
+    <div id="v-codebox" class="vcode vhide">
+      <p class="vmuted">Have a 6-digit code? Enter it with your email:</p>
+      <input type="email" id="v-email" placeholder="you@example.com" autocomplete="email">
+      <input type="text" id="v-codeinput" placeholder="6-digit code" inputmode="numeric" maxlength="6">
+      <button class="vbtn" id="v-codebtn" type="button">Verify Code</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var BASE = (window.FTK_API_BASE || (location.origin)) + "/api";
+      var ico = document.getElementById("v-ico"), title = document.getElementById("v-title"),
+          msg = document.getElementById("v-msg"), actions = document.getElementById("v-actions"),
+          codebox = document.getElementById("v-codebox");
+
+      function render(state, message) {
+        var map = {
+          VERIFIED:     { ico: "✅", cls: "ok",   title: "Email verified", code: false },
+          EXPIRED:      { ico: "⏳", cls: "warn", title: "Link expired", code: true },
+          ALREADY_USED: { ico: "↩️", cls: "warn", title: "Already verified", code: false },
+          INVALID_TOKEN:{ ico: "⚠️", cls: "bad",  title: "Invalid link or code", code: true },
+          ERROR:        { ico: "⚠️", cls: "bad",  title: "Something went wrong", code: true },
+        };
+        var s = map[state] || map.ERROR;
+        ico.textContent = s.ico;
+        title.textContent = s.title; title.className = s.cls;
+        msg.textContent = message || "";
+        actions.innerHTML = state === "VERIFIED"
+          ? '<a class="vbtn" href="account.html#overview">Go to my account</a>'
+          : '<a class="vbtn secondary" href="account.html">Back to sign in</a>';
+        codebox.classList.toggle("vhide", !s.code);
+      }
+
+      async function postVerify(body) {
+        try {
+          var res = await fetch(BASE + "/auth/email/verify", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            credentials: "include", body: JSON.stringify(body),
+          });
+          var data = await res.json().catch(function () { return {}; });
+          render(data.code || "ERROR", data.message || "");
+        } catch (e) { render("ERROR", "We couldn't reach the server. Please try again."); }
+      }
+
+      // Auto-verify if the link carries a token.
+      var token = new URLSearchParams(location.search).get("token");
+      if (token) postVerify({ token: token });
+      else render("INVALID_TOKEN", "No verification token found. Enter your code below, or request a new email.");
+
+      document.getElementById("v-codebtn").addEventListener("click", function () {
+        var email = document.getElementById("v-email").value.trim();
+        var code = document.getElementById("v-codeinput").value.trim();
+        if (!email || !code) { msg.textContent = "Enter both your email and the 6-digit code."; return; }
+        postVerify({ email: email, code: code });
+      });
+    })();
+  </script>
+</body>
+</html>
