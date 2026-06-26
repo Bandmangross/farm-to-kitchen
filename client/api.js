@@ -8,8 +8,13 @@
  * Include on every page BEFORE your page script:  <script src="api.js"></script>
  */
 (function () {
-  // Frontend runs on http://localhost:3000, backend API on http://localhost:5050.
-  var BASE = (window.FTK_API_BASE || "http://localhost:5050") + "/api";
+  // API base: window.FTK_API_BASE overrides everything; otherwise localhost in local
+  // dev, and the live Render backend in production (deployed at ftkfoods.com).
+  var BASE = (window.FTK_API_BASE
+    || (/^(localhost|127\.0\.0\.1)/.test(location.hostname)
+          ? "http://localhost:5050"
+          : "https://farm-to-kitchen-glqm.onrender.com")
+    ) + "/api";
 
   // ── Customer session ──
   function getToken() { return localStorage.getItem("ftk_token"); }
