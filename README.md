@@ -36,12 +36,18 @@ Node.js · Express · MongoDB · Mongoose · JWT · bcryptjs · Paystack (server
 
 ## Deployment (frontend)
 The **canonical frontend is [`client/`](client/)** — this is what Vercel serves.
-Configure the Vercel project with **Root Directory = `client`** (see [client/vercel.json](client/vercel.json)).
+
+The repo-root [`vercel.json`](vercel.json) **forces** Vercel to build and serve only
+`client/` (`builds: client/**` + routes mapping every path into `/client/…`), so the
+cutover does **not** depend on a dashboard Root-Directory toggle. Setting **Root
+Directory = `client`** in the Vercel project is an optional, cleaner equivalent (in
+which case [client/vercel.json](client/vercel.json) applies instead).
 
 > The duplicate `*.html`, `script.js`, and `api.js` at the **repository root** are
-> legacy prototype copies kept temporarily for reference. They are **not** the
-> deployed app and must not be edited. (Scheduled for removal once the Vercel
-> Root-Directory cutover to `client/` is verified — not deleted yet.)
+> legacy prototype copies kept temporarily for reference. They are **not** built or
+> served (the root `vercel.json` only builds `client/**`) and must not be edited.
+> (Scheduled for removal once the `client/` cutover is verified in production — not
+> deleted yet.)
 
 ---
 
