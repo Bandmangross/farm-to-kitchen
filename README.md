@@ -34,6 +34,15 @@ Node.js · Express · MongoDB · Mongoose · JWT · bcryptjs · Paystack (server
 - [docs/PHASE_3_DESIGN.md](docs/PHASE_3_DESIGN.md) — Commerce Integrity & Checkout Hardening (**implemented**, flags default-off)
 - [docs/PHASE3_ACTIVATION_RUNBOOK.md](docs/PHASE3_ACTIVATION_RUNBOOK.md) — Phase 3 flag-by-flag activation, verification & rollback runbook
 
+## Deployment (frontend)
+The **canonical frontend is [`client/`](client/)** — this is what Vercel serves.
+Configure the Vercel project with **Root Directory = `client`** (see [client/vercel.json](client/vercel.json)).
+
+> The duplicate `*.html`, `script.js`, and `api.js` at the **repository root** are
+> legacy prototype copies kept temporarily for reference. They are **not** the
+> deployed app and must not be edited. (Scheduled for removal once the Vercel
+> Root-Directory cutover to `client/` is verified — not deleted yet.)
+
 ---
 
 ## 1. Prerequisites
