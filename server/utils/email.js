@@ -129,32 +129,24 @@ function getTemplate(name, lang) {
   return t[lang] || t.en; // graceful fallback to English
 }
 
-// ── Transport (lazy). Prefers Resend SMTP (RESEND_API_KEY); falls back to AWS SES
-// (AWS_REGION + SES_FROM); otherwise null → DEV log (no real send). ──
+// ── AWS SES transport (lazy). Used ONLY as a fallback when RESEND_API_KEY is absent.
+// Resend now sends over its HTTP API (see deliver) to avoid blocked SMTP ports. ──
 let _transport = null;
 let _resolved = false;
 function getTransport() {
   if (_resolved) return _transport;
   _resolved = true;
-  try {
-    const nodemailer = require("nodemailer");
-    if (process.env.RESEND_API_KEY) {
-      _transport = nodemailer.createTransport({
-        host: "smtp.resend.com",
-        port: 465,
-        secure: true,
-        auth: { user: "resend", pass: process.env.RESEND_API_KEY },
-      });
-      console.log("[Email] Resend SMTP transport ready");
-    } else if (process.env.AWS_REGION && process.env.SES_FROM) {
+  if (process.env.AWS_REGION && process.env.SES_FROM) {
+    try {
+      const nodemailer = require("nodemailer");
       const aws = require("@aws-sdk/client-ses");
       const ses = new aws.SESClient({ region: process.env.AWS_REGION });
       _transport = nodemailer.createTransport({ SES: { ses, aws } });
       console.log("[Email] AWS SES transport ready (region " + process.env.AWS_REGION + ")");
+    } catch (e) {
+      console.warn("[Email] SES init failed, using DEV transport:", e.message);
+      _transport = null;
     }
-  } catch (e) {
-    console.warn("[Email] transport init failed, using DEV transport:", e.message);
-    _transport = null;
   }
   return _transport;
 }
@@ -164,30 +156,65 @@ function fromAddr() {
   return process.env.EMAIL_FROM || process.env.SES_FROM || "no-reply@farmtokitchen.local";
 }
 
-async function sendVerificationEmail({ to, link, code, lang = "en" }) {
-  const tpl = getTemplate("verification", lang);
+// Core delivery. Provider order: Resend HTTP API (RESEND_API_KEY) → AWS SES → DEV log.
+// Throws on a hard provider failure so callers' best-effort try/catch can record it;
+// returns { sent:false } when suppressed or when no provider is configured.
+async function deliver({ to, subject, text, html }) {
   const from = fromAddr();
   if (process.env.ENABLE_EMAIL === "false") {
     console.log("[Email] suppressed (ENABLE_EMAIL=false) → " + to);
     return { sent: false, reason: "disabled" };
   }
-  const transport = getTransport();
-  if (!transport) {
-    console.log(`[Email:DEV] to=${to} subject="${tpl.subject}"\n  link=${link}\n  code=${code}`);
-    return { sent: false, reason: "dev" };
+
+  // Resend HTTP API (preferred — avoids blocked outbound SMTP ports).
+  if (process.env.RESEND_API_KEY) {
+    let resp;
+    try {
+      resp = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + process.env.RESEND_API_KEY, // key never logged
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from, to, subject, text, html }),
+      });
+    } catch (e) {
+      console.error(`[Email] Resend API request FAILED → ${to}: ${e.message}`);
+      throw e;
+    }
+    if (!resp.ok) {
+      let detail = ""; try { detail = await resp.text(); } catch (_) {}
+      console.error(`[Email] Resend API send FAILED → ${to} (HTTP ${resp.status}) ${detail}`);
+      const err = new Error("Resend API error " + resp.status);
+      err.status = resp.status;
+      throw err;
+    }
+    let id = ""; try { id = (await resp.json()).id || ""; } catch (_) {}
+    console.log(`[Email] Resend API sent → ${to} (id ${id})`);
+    return { sent: true, id };
   }
-  await transport.sendMail({ from, to, subject: tpl.subject, text: tpl.text({ link, code }), html: tpl.html({ link, code }) });
-  return { sent: true };
+
+  // AWS SES fallback (only when RESEND_API_KEY is missing).
+  const transport = getTransport();
+  if (transport) {
+    await transport.sendMail({ from, to, subject, text, html });
+    console.log("[Email] SES sent → " + to);
+    return { sent: true };
+  }
+
+  // DEV fallback — no email provider configured.
+  console.log(`[Email:DEV] to=${to} subject="${subject}" (no email provider configured)`);
+  return { sent: false, reason: "dev" };
+}
+
+async function sendVerificationEmail({ to, link, code, lang = "en" }) {
+  const tpl = getTemplate("verification", lang);
+  return deliver({ to, subject: tpl.subject, text: tpl.text({ link, code }), html: tpl.html({ link, code }) });
 }
 
 async function sendTemplate(name, { to, lang = "en", data = {} }) {
   const tpl = getTemplate(name, lang);
-  const from = fromAddr();
-  if (process.env.ENABLE_EMAIL === "false") { console.log("[Email] suppressed (ENABLE_EMAIL=false) → " + to + " (" + name + ")"); return { sent: false, reason: "disabled" }; }
-  const transport = getTransport();
-  if (!transport) { console.log(`[Email:DEV] to=${to} subject="${tpl.subject}" (${name})`); return { sent: false, reason: "dev" }; }
-  await transport.sendMail({ from, to, subject: tpl.subject, text: tpl.text(data), html: tpl.html(data) });
-  return { sent: true };
+  return deliver({ to, subject: tpl.subject, text: tpl.text(data), html: tpl.html(data) });
 }
 function sendResetEmail({ to, link, code, lang }) { return sendTemplate("passwordReset", { to, lang, data: { link, code } }); }
 function sendPasswordChangedEmail({ to, lang, reason }) { return sendTemplate("passwordChanged", { to, lang, data: { reason } }); }
