@@ -95,36 +95,78 @@ const templates = {
     },
     fr: null, es: null, de: null, pt: null, ar: null, // future translations
   },
+  // Phase 5.1 — order confirmation (sent after a successful PAID order).
+  orderConfirmation: {
+    en: {
+      subject: "Your Farm To Kitchen order is confirmed",
+      text: ({ orderId, customerName, total, items }) =>
+        `Hi ${customerName || "there"},\n\nThanks for your order — payment received and your order is confirmed.\n\n` +
+        `Order: ${orderId}\n` +
+        (Array.isArray(items)
+          ? items.map((it) => `  - ${it.name} (${it.quantity || 1}) — NGN ${Number(it.price || 0).toLocaleString()}`).join("\n") + "\n"
+          : "") +
+        `\nTotal paid: NGN ${Number(total || 0).toLocaleString()}\n\nWe'll let you know when it ships. Thank you for shopping with Farm To Kitchen!`,
+      html: ({ orderId, customerName, total, items }) =>
+        `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:auto;color:#1a1a1a">
+          <h2 style="color:#0b7a34;margin:0 0 8px">Order confirmed 🎉</h2>
+          <p>Hi ${customerName || "there"}, thanks for your order — payment received and your order is confirmed.</p>
+          <p style="margin:6px 0"><b>Order:</b> ${orderId}</p>
+          <table style="font-size:14px;border-collapse:collapse;width:100%;margin:12px 0">
+            ${(Array.isArray(items) ? items : []).map((it) =>
+              `<tr><td style="padding:4px 0;border-bottom:1px solid #eee">${it.name} <span style="color:#667">(${it.quantity || 1})</span></td>
+                   <td style="padding:4px 0;border-bottom:1px solid #eee;text-align:right">NGN ${Number(it.price || 0).toLocaleString()}</td></tr>`
+            ).join("")}
+          </table>
+          <p style="font-size:16px"><b>Total paid: NGN ${Number(total || 0).toLocaleString()}</b></p>
+          <p style="color:#8a9097;font-size:12px;margin-top:18px">We'll email you when it ships. Thank you for shopping with Farm To Kitchen!</p>
+        </div>`,
+    },
+    fr: null, es: null, de: null, pt: null, ar: null, // future translations
+  },
 };
 function getTemplate(name, lang) {
   const t = templates[name] || {};
   return t[lang] || t.en; // graceful fallback to English
 }
 
-// ── Transport (lazy; SES only when configured) ──
+// ── Transport (lazy). Prefers Resend SMTP (RESEND_API_KEY); falls back to AWS SES
+// (AWS_REGION + SES_FROM); otherwise null → DEV log (no real send). ──
 let _transport = null;
 let _resolved = false;
 function getTransport() {
   if (_resolved) return _transport;
   _resolved = true;
-  if (process.env.AWS_REGION && process.env.SES_FROM) {
-    try {
-      const nodemailer = require("nodemailer");
+  try {
+    const nodemailer = require("nodemailer");
+    if (process.env.RESEND_API_KEY) {
+      _transport = nodemailer.createTransport({
+        host: "smtp.resend.com",
+        port: 465,
+        secure: true,
+        auth: { user: "resend", pass: process.env.RESEND_API_KEY },
+      });
+      console.log("[Email] Resend SMTP transport ready");
+    } else if (process.env.AWS_REGION && process.env.SES_FROM) {
       const aws = require("@aws-sdk/client-ses");
       const ses = new aws.SESClient({ region: process.env.AWS_REGION });
       _transport = nodemailer.createTransport({ SES: { ses, aws } });
       console.log("[Email] AWS SES transport ready (region " + process.env.AWS_REGION + ")");
-    } catch (e) {
-      console.warn("[Email] SES unavailable, using DEV transport:", e.message);
-      _transport = null;
     }
+  } catch (e) {
+    console.warn("[Email] transport init failed, using DEV transport:", e.message);
+    _transport = null;
   }
   return _transport;
 }
 
+// Sender address: EMAIL_FROM (Resend) → SES_FROM (legacy) → dev fallback.
+function fromAddr() {
+  return process.env.EMAIL_FROM || process.env.SES_FROM || "no-reply@farmtokitchen.local";
+}
+
 async function sendVerificationEmail({ to, link, code, lang = "en" }) {
   const tpl = getTemplate("verification", lang);
-  const from = process.env.SES_FROM || "no-reply@farmtokitchen.local";
+  const from = fromAddr();
   if (process.env.ENABLE_EMAIL === "false") {
     console.log("[Email] suppressed (ENABLE_EMAIL=false) → " + to);
     return { sent: false, reason: "disabled" };
@@ -140,7 +182,7 @@ async function sendVerificationEmail({ to, link, code, lang = "en" }) {
 
 async function sendTemplate(name, { to, lang = "en", data = {} }) {
   const tpl = getTemplate(name, lang);
-  const from = process.env.SES_FROM || "no-reply@farmtokitchen.local";
+  const from = fromAddr();
   if (process.env.ENABLE_EMAIL === "false") { console.log("[Email] suppressed (ENABLE_EMAIL=false) → " + to + " (" + name + ")"); return { sent: false, reason: "disabled" }; }
   const transport = getTransport();
   if (!transport) { console.log(`[Email:DEV] to=${to} subject="${tpl.subject}" (${name})`); return { sent: false, reason: "dev" }; }
@@ -150,5 +192,6 @@ async function sendTemplate(name, { to, lang = "en", data = {} }) {
 function sendResetEmail({ to, link, code, lang }) { return sendTemplate("passwordReset", { to, lang, data: { link, code } }); }
 function sendPasswordChangedEmail({ to, lang, reason }) { return sendTemplate("passwordChanged", { to, lang, data: { reason } }); }
 function sendNewDeviceLoginEmail({ to, lang, data }) { return sendTemplate("newDeviceLogin", { to, lang, data }); }
+function sendOrderConfirmationEmail({ to, lang, data }) { return sendTemplate("orderConfirmation", { to, lang, data }); }
 
-module.exports = { normalizeEmail, sendVerificationEmail, sendResetEmail, sendPasswordChangedEmail, sendNewDeviceLoginEmail, getTemplate, LANGS };
+module.exports = { normalizeEmail, sendVerificationEmail, sendResetEmail, sendPasswordChangedEmail, sendNewDeviceLoginEmail, sendOrderConfirmationEmail, getTemplate, LANGS };

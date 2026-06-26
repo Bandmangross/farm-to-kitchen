@@ -5,6 +5,7 @@ const PaymentEvent = require("../models/PaymentEvent");
 const logActivity = require("../utils/activity");
 const { deductStockForOrder, withTxn, commitForOrder } = require("../utils/inventory");
 const paystack = require("../utils/paystack");
+const { sendOrderConfirmationEmail } = require("../utils/email");
 
 const integrityOn = () => process.env.ENABLE_COMMERCE_INTEGRITY === "true"; // Phase 3 (default off)
 
@@ -83,6 +84,15 @@ exports.confirm = async (req, res, next) => {
     });
 
     await logActivity({ type: "payment", icon: "💳", message: `Payment received for ${order.orderId} (${reference})` });
+
+    // Best-effort order-confirmation email — must NEVER block payment/order success.
+    try {
+      await sendOrderConfirmationEmail({
+        to: order.customerEmail,
+        data: { orderId: order.orderId, customerName: order.customerName, total: order.grandTotal, items: order.items },
+      });
+    } catch (e) { console.warn("[order-email] confirm send failed: " + e.message); }
+
     res.status(201).json({ order, payment });
   } catch (err) {
     next(err);
