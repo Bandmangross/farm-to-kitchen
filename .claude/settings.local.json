@@ -59,7 +59,14 @@
       "Bash(git init *)",
       "Bash(git config *)",
       "Bash(git add *)",
-      "Bash(grep -E \"\\(^|/\\)\\\\.env$|node_modules/\")"
+      "Bash(grep -E \"\\(^|/\\)\\\\.env$|node_modules/\")",
+      "Bash(git show-ref *)",
+      "Bash(cd /Users/bandman_gr/farm-to-kitchen/server *)",
+      "Bash(whois ftkfoods.com)",
+      "Bash(curl -sS -I --max-time 12 https://www.ftkfoods.com)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp"
     ]
   }
 }

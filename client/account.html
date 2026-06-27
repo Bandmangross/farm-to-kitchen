@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- FTK_BUILD: account-uxr3-redesign (phone→My Account, 2FA card, auto-login) -->
-    <meta name="ftk-build" content="account-uxr3-redesign">
+    <!-- FTK_BUILD: account-uxr4-cleanup (phone→My Account, 2FA card, auto-login) -->
+    <meta name="ftk-build" content="account-uxr4-cleanup">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Account Center - Farm To Kitchen</title>
@@ -611,12 +611,6 @@
     }
 
     // ── Security ──────────────────────────────────────────────────────────────
-    window.changePassword = function () {
-        if (!document.getElementById("sec-current").value || !document.getElementById("sec-new").value) { showToast("Enter both passwords.", "error"); return; }
-        alert("Password change requests are handled securely. For now, log out and sign in again.");
-        document.getElementById("sec-current").value = ""; document.getElementById("sec-new").value = "";
-    };
-
     // ── Addresses (localStorage CRUD; does NOT affect checkout) ────────────────
     function getAddresses() { try { return JSON.parse(getItem("ftk_addresses") || "[]") || []; } catch (e) { return []; } }
     function setAddresses(a) { setItem("ftk_addresses", JSON.stringify(a)); }
@@ -915,23 +909,23 @@
         const fullName = document.getElementById("full-name").value.trim(), email = document.getElementById("email").value.trim();
         const phone = document.getElementById("phone").value.trim(), password = document.getElementById("password").value.trim();
         if (!fullName || !email || !phone || !password) { showToast("Please fill in all fields.", "error"); return; }
-        if (window.API) {
-            try { const res = await API.register({ fullName: fullName, email: email, phone: phone, password: password });
-                storeSession(res.user); showToast("Account created! Welcome 🌾"); setTimeout(function () { window.location.href = "index.html"; }, 1200); return;
-            } catch (e) { if (e && e.status === 409) { showToast("An account with this email already exists.", "error"); return; } console.warn(e); }
+        if (!window.API) { showToast("Service unavailable. Please try again.", "error"); return; }
+        try {
+            const res = await API.register({ fullName: fullName, email: email, phone: phone, password: password });
+            storeSession(res.user); showToast("Account created! Welcome 🌾"); setTimeout(function () { window.location.href = "index.html"; }, 1200);
+        } catch (e) {
+            showToast(e && e.status === 409 ? "An account with this email already exists." : (e && e.message) || "Could not create account. Please try again.", "error");
         }
-        setItem("fullName", fullName); setItem("email", email); setItem("phone", phone); setItem("password", password);
-        setItem("loggedInUser", email); setItem("joinDate", new Date().toLocaleDateString("en-NG", { month: "short", year: "numeric" }));
-        showToast("Account created! Welcome 🌾"); setTimeout(function () { window.location.href = "index.html"; }, 1200);
     };
     window.login = async function () {
         const e1 = document.getElementById("login-email").value.trim(), p1 = document.getElementById("login-password").value.trim();
-        if (window.API) {
-            try { const res = await API.login(e1, p1); storeSession(res.user); showToast("Login successful! 👋"); setTimeout(function () { window.location.href = "index.html"; }, 1200); return; }
-            catch (e) { if (e && e.status === 401) { showToast("Invalid email or password.", "error"); return; } console.warn(e); }
+        if (!window.API) { showToast("Service unavailable. Please try again.", "error"); return; }
+        try {
+            const res = await API.login(e1, p1);
+            storeSession(res.user); showToast("Login successful! 👋"); setTimeout(function () { window.location.href = "index.html"; }, 1200);
+        } catch (e) {
+            showToast(e && e.status === 401 ? "Invalid email or password." : (e && e.message) || "Could not sign in. Please try again.", "error");
         }
-        if (e1 === getItem("email") && p1 === getItem("password")) { setItem("loggedInUser", e1); showToast("Login successful! 👋"); setTimeout(function () { window.location.href = "index.html"; }, 1200); }
-        else { showToast("Invalid email or password.", "error"); }
     };
     window.logout = function () { if (window.API) API.logout(); localStorage.removeItem("loggedInUser"); showToast("Logged out. See you soon!"); setTimeout(function () { renderPage(); }, 800); };
 
