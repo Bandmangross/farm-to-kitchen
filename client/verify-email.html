@@ -72,6 +72,17 @@
             credentials: "include", body: JSON.stringify(body),
           });
           var data = await res.json().catch(function () { return {}; });
+          // Auto-login: the backend returns a session token on success → store it and
+          // go straight to the account (no second login).
+          if (data && data.code === "VERIFIED" && data.token) {
+            try {
+              localStorage.setItem("ftk_token", data.token);
+              if (data.user) localStorage.setItem("ftk_user", JSON.stringify(data.user));
+            } catch (e) {}
+            render("VERIFIED", "Email verified — signing you in…");
+            setTimeout(function () { location.href = "account.html"; }, 1100);
+            return;
+          }
           render(data.code || "ERROR", data.message || "");
         } catch (e) { render("ERROR", "We couldn't reach the server. Please try again."); }
       }

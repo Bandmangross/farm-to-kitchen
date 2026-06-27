@@ -1,8 +1,11 @@
 const VerificationCode = require("../models/VerificationCode");
 const User = require("../models/User");
+const Session = require("../models/Session");
 const { normalizeEmail } = require("../utils/email");
 const { issueVerification, verificationEnabled, sha } = require("../utils/emailVerify");
 const { writeAuthAudit } = require("../utils/audit");
+const { recordDevice, getOrIssueDeviceId } = require("../utils/device");
+const { signAccess, newRefreshToken, hashToken, setRefreshCookie, REFRESH_TTL_MS } = require("../utils/tokens");
 
 const devEcho = () => process.env.EMAIL_DEV_ECHO === "true";
 
@@ -79,13 +82,30 @@ exports.verify = async (req, res) => {
     user.verificationMethod = method;
     user.verificationIp = req.ip;
     if (user.accountStatus === "pending_verification") user.accountStatus = "active";
+    user.lastLoginAt = new Date(); user.lastLoginIp = req.ip;
     await user.save();
     await writeAuthAudit({ user: user._id, email: user.email, event: "email_verified", success: true, req, metadata: { method } });
+
+    // Auto-login: mint a real session so the user is authenticated immediately after
+    // verification (no second login). Mirrors the standard login session flow.
+    const deviceId = getOrIssueDeviceId(req, res);
+    const device = await recordDevice(user._id, deviceId, req);
+    const raw = newRefreshToken();
+    await Session.create({
+      user: user._id, device: device ? device._id : null, refreshTokenHash: hashToken(raw),
+      ipAddress: req.ip, userAgent: req.headers["user-agent"] || "", expiresAt: new Date(Date.now() + REFRESH_TTL_MS),
+    });
+    setRefreshCookie(res, raw);
+    const accessToken = signAccess(user);
 
     return res.json({
       code: "VERIFIED",
       message: "Your email has been verified.",
-      user: { id: user._id, email: user.email, emailVerified: true, accountStatus: user.accountStatus },
+      token: accessToken,
+      user: {
+        id: user._id, fullName: user.fullName, email: user.email, phone: user.phone, role: user.role,
+        emailVerified: true, phoneVerified: !!user.phoneVerified, accountStatus: user.accountStatus,
+      },
     });
   } catch (e) {
     console.warn("[email.verify]", e.message);
