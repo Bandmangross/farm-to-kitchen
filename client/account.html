@@ -534,6 +534,7 @@
         }
         setItem("fullName", p.fullName); setItem("email", p.email); setItem("phone", p.phone); setItem("address", p.address); setItem("loggedInUser", p.email);
         populateProfile(); updateAccountDropdown();
+        refreshUser(); // reload authoritative user → updates every component
     }
 
     // ── Security ──────────────────────────────────────────────────────────────
@@ -814,6 +815,29 @@
         setItem("address", user.address || ""); setItem("loggedInUser", user.email || "");
         if (user.joinDate) setItem("joinDate", new Date(user.joinDate).toLocaleDateString("en-NG", { month: "short", year: "numeric" }));
     }
+
+    // ── SINGLE SOURCE OF TRUTH ─────────────────────────────────────────────────
+    // Reload the authenticated user from the backend (GET /me) and broadcast it via
+    // the "ftk:user" event so EVERY user-dependent component updates in place. Call
+    // after any successful account mutation (and on load) — no logout/reload needed.
+    async function refreshUser() {
+        if (!window.API || !API.getToken || !API.getToken()) return null;
+        try {
+            const res = await API.me();                  // backend is authoritative
+            const user = res && res.user;
+            if (!user) return null;
+            try { localStorage.setItem("ftk_user", JSON.stringify(user)); } catch (e) {} // SoT for API.getUser()
+            storeSession(user);                           // mirror into account fields
+            document.dispatchEvent(new CustomEvent("ftk:user", { detail: user }));
+            return user;
+        } catch (e) { console.warn("[Account] refreshUser failed:", e && e.message); return null; }
+    }
+    window.refreshUser = refreshUser;
+    // Overview, sidebar profile, profile form and the nav dropdown re-render from the
+    // refreshed user (injected cards/banner observe the same event independently).
+    document.addEventListener("ftk:user", function () {
+        if (getItem("loggedInUser")) { populateProfile(); updateAccountDropdown(); }
+    });
     window.createAccount = async function () {
         const fullName = document.getElementById("full-name").value.trim(), email = document.getElementById("email").value.trim();
         const phone = document.getElementById("phone").value.trim(), password = document.getElementById("password").value.trim();
@@ -885,25 +909,32 @@
 <script>
 (function () {
   if (!window.API || !API.getUser) return;
-  var u = API.getUser();
-  if (!u || u.emailVerified) return;
-  var bar = document.createElement("div");
-  bar.id = "verify-banner";
-  bar.style.cssText = "position:sticky;top:0;z-index:900;background:#fff4e5;border-bottom:1px solid #f0c98a;color:#7a5200;padding:10px 16px;font-size:14px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap";
-  bar.innerHTML = '<span>📧 Please verify your email to fully activate your account.</span>' +
-    '<button id="verify-resend" style="background:#1f7a3f;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-weight:700;cursor:pointer">Resend email</button>' +
-    '<a href="verify-email.html" style="color:#0b7a34;font-weight:700">Enter code</a>' +
-    '<span id="verify-msg" style="color:#7a8a7f"></span>';
-  document.body.insertBefore(bar, document.body.firstChild);
-  var btn = document.getElementById("verify-resend"), msg = document.getElementById("verify-msg");
-  btn.addEventListener("click", function () {
-    btn.disabled = true; msg.textContent = "Sending…";
-    API.email.resend(u.email).then(function () {
-      msg.textContent = "Sent. Check your inbox.";
-      var s = 60; btn.textContent = "Resend (" + s + "s)";
-      var t = setInterval(function () { s--; btn.textContent = s > 0 ? "Resend (" + s + "s)" : "Resend email"; if (s <= 0) { clearInterval(t); btn.disabled = false; } }, 1000);
-    }).catch(function (e) { msg.textContent = e.message || "Couldn't send."; btn.disabled = false; btn.textContent = "Resend email"; });
-  });
+  // Reactive: shows the banner when the email is unverified, and removes it the
+  // moment the user becomes verified — driven by the "ftk:user" event (no reload).
+  function syncBanner(u) {
+    var existing = document.getElementById("verify-banner");
+    if (!u || u.emailVerified) { if (existing) existing.remove(); return; }
+    if (existing) return; // already shown
+    var bar = document.createElement("div");
+    bar.id = "verify-banner";
+    bar.style.cssText = "position:sticky;top:0;z-index:900;background:#fff4e5;border-bottom:1px solid #f0c98a;color:#7a5200;padding:10px 16px;font-size:14px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap";
+    bar.innerHTML = '<span>📧 Please verify your email to fully activate your account.</span>' +
+      '<button id="verify-resend" style="background:#1f7a3f;color:#fff;border:none;padding:7px 14px;border-radius:7px;font-weight:700;cursor:pointer">Resend email</button>' +
+      '<a href="verify-email.html" style="color:#0b7a34;font-weight:700">Enter code</a>' +
+      '<span id="verify-msg" style="color:#7a8a7f"></span>';
+    document.body.insertBefore(bar, document.body.firstChild);
+    var btn = bar.querySelector("#verify-resend"), msg = bar.querySelector("#verify-msg");
+    btn.addEventListener("click", function () {
+      btn.disabled = true; msg.textContent = "Sending…";
+      API.email.resend(u.email).then(function () {
+        msg.textContent = "Sent. Check your inbox.";
+        var s = 60; btn.textContent = "Resend (" + s + "s)";
+        var t = setInterval(function () { s--; btn.textContent = s > 0 ? "Resend (" + s + "s)" : "Resend email"; if (s <= 0) { clearInterval(t); btn.disabled = false; } }, 1000);
+      }).catch(function (e) { msg.textContent = e.message || "Couldn't send."; btn.disabled = false; btn.textContent = "Resend email"; });
+    });
+  }
+  syncBanner(API.getUser());
+  document.addEventListener("ftk:user", function (e) { syncBanner(e && e.detail); });
 })();
 </script>
 <!-- Phase 2.3: phone verification widget (auth layer only; no storefront/catalog change) -->
@@ -942,6 +973,8 @@
       (verified ? "background:#e6f4ea;color:#0b7a34;border:1px solid #bfe6cb" : "background:#fff3cd;color:#8a6d3b;border:1px solid #ffe08a");
   }
   setPhoneState(!!u.phoneVerified);
+  // Observe the single source of truth: keep the badge in sync after verification.
+  document.addEventListener("ftk:user", function (e) { if (e && e.detail) setPhoneState(!!e.detail.phoneVerified); });
   (function () { var h = card.querySelector(".sec-head"), b = card.querySelector(".sec-body"), c = card.querySelector(".sec-chev");
     if (h && b) h.addEventListener("click", function () { var open = b.style.display !== "none"; b.style.display = open ? "none" : "block"; if (c) c.textContent = open ? "▸" : "▾"; }); })();
 
@@ -961,6 +994,7 @@
     API.phone.verify(code).then(function () {
       msg.textContent = "Phone verified ✓"; setPhoneState(true);
       var nu = API.getUser() || {}; nu.phoneVerified = true; try { localStorage.setItem("ftk_user", JSON.stringify(nu)); } catch (e) {}
+      if (window.refreshUser) window.refreshUser(); // reload authoritative user → sync all components
     }).catch(function (e) { msg.textContent = e.message || "Verification failed."; });
   });
   card.querySelector("#pv-resend").addEventListener("click", function () {
@@ -1083,6 +1117,14 @@
   });
 
   load();
+})();
+</script>
+<!-- Phase 7: on load, reload the authoritative user once so the UI reflects changes
+     made elsewhere (e.g. email verified on verify-email.html) without a re-login.
+     Runs after the observer scripts above so they receive the "ftk:user" event. -->
+<script>
+(function () {
+  if (window.refreshUser && window.API && API.getToken && API.getToken()) window.refreshUser();
 })();
 </script>
 </body>
