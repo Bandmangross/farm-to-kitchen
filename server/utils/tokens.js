@@ -10,8 +10,16 @@ const REFRESH_TTL_DAYS = Number(process.env.REFRESH_TTL_DAYS || 30);
 const REFRESH_TTL_MS = REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 const isProd = process.env.NODE_ENV === "production";
-// Same-origin in dev → SameSite=Lax works; Secure only in production (HTTPS).
-const baseCookie = { httpOnly: true, sameSite: "lax", secure: isProd, path: "/" };
+// In production the frontend (Vercel: ftkfoods.com) and API (Render: onrender.com)
+// are DIFFERENT sites, so auth cookies must be SameSite=None; Secure to be sent on
+// cross-site requests (notably POST /auth/token/refresh). Local dev is same-origin
+// over http → SameSite=Lax, not Secure (SameSite=None requires Secure).
+const baseCookie = {
+  httpOnly: true,
+  sameSite: isProd ? "none" : "lax",
+  secure: isProd,
+  path: "/",
+};
 
 function signAccess(user, opts = {}) {
   // Customers: short-lived access token (cookie-refreshed). Admin: short TTL (Phase 2.5
