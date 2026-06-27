@@ -937,8 +937,10 @@
       '<button id="pv-resend" style="background:#f1faf3;color:#0b7a34;border:1px solid #0b7a34;padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer">Resend</button></div>' +
     '<p id="pv-msg" style="margin:10px 0 0;font-size:13px;color:#7a8a7f"></p>';
 
-  var host = document.querySelector("#section-overview, .account-main, main") || document.body;
-  host.insertBefore(card, host.firstChild);
+  // Render inside the Security & Login panel so it only shows when that section is
+  // active (panels are display:none until .active) — never above the dashboard.
+  var host = document.getElementById("panel-security") || document.body;
+  host.appendChild(card);
 
   var stateEl = card.querySelector("#pv-state"), msg = card.querySelector("#pv-msg");
   stateEl.textContent = u.phoneVerified ? "(verified ✓)" : "(not verified)";
@@ -982,8 +984,10 @@
     '<button id="cp-go" style="background:#1f7a3f;color:#fff;border:none;padding:10px 16px;border-radius:8px;font-weight:700;cursor:pointer">Update password</button>' +
     '<p style="margin:8px 0 0;font-size:12px"><a href="forgot-password.html" style="color:#0b7a34;font-weight:700">Forgot password?</a></p>' +
     '<p id="cp-msg" style="margin:8px 0 0;font-size:13px;color:#7a8a7f"></p>';
-  var host = document.querySelector("#section-overview, .account-main, main") || document.body;
-  host.insertBefore(card, host.firstChild);
+  // Render inside the Security & Login panel so it only shows when that section is
+  // active (panels are display:none until .active) — never above the dashboard.
+  var host = document.getElementById("panel-security") || document.body;
+  host.appendChild(card);
   var msg = card.querySelector("#cp-msg");
   card.querySelector("#cp-go").addEventListener("click", function () {
     var cur = card.querySelector("#cp-cur").value, n1 = card.querySelector("#cp-new").value, n2 = card.querySelector("#cp-new2").value;
@@ -1011,8 +1015,10 @@
     '<div id="sess-list" style="font-size:13px;color:#33413a">Loading…</div>' +
     '<button id="sess-all" style="display:none;margin-top:12px;background:#c0392b;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:700;cursor:pointer">Sign out of all devices</button>' +
     '<p id="sess-msg" style="margin:8px 0 0;font-size:13px;color:#7a8a7f"></p>';
-  var host = document.querySelector("#section-overview, .account-main, main") || document.body;
-  host.insertBefore(card, host.firstChild);
+  // Render inside the Security & Login panel so it only shows when that section is
+  // active (panels are display:none until .active) — never above the dashboard.
+  var host = document.getElementById("panel-security") || document.body;
+  host.appendChild(card);
   var list = card.querySelector("#sess-list"), msg = card.querySelector("#sess-msg"), allBtn = card.querySelector("#sess-all");
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
