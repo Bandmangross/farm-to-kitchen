@@ -37,7 +37,12 @@
 
   <script>
     (function () {
-      var BASE = (window.FTK_API_BASE || (location.origin)) + "/api";
+      // API base: window.FTK_API_BASE overrides; else localhost in dev, Render backend in prod.
+      var BASE = (window.FTK_API_BASE
+        || (/^(localhost|127\.0\.0\.1)/.test(location.hostname)
+              ? "http://localhost:5050"
+              : "https://farm-to-kitchen-glqm.onrender.com")
+        ) + "/api";
       var ico = document.getElementById("v-ico"), title = document.getElementById("v-title"),
           msg = document.getElementById("v-msg"), actions = document.getElementById("v-actions"),
           codebox = document.getElementById("v-codebox");
