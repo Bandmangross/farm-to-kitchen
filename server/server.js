@@ -85,6 +85,47 @@ function assertPaymentConfig() {
 }
 assertPaymentConfig();
 
+// ── Production auth-config guard (WS5) ──
+// Mirrors the payment guard: fail fast so an unsafe authentication configuration
+// can NEVER reach production. The most important rule — a default/weak JWT signing
+// secret means anyone can forge admin tokens — is enforced here.
+function assertAuthConfig() {
+  const isProd = process.env.NODE_ENV === "production";
+  const secret = process.env.JWT_SECRET || "";
+  const weakSecret = !secret || secret === "change_this_to_a_long_random_secret" || secret.length < 32;
+
+  const mfaOn = process.env.ENABLE_ADMIN_MFA === "true";
+  const mfaKeyOk = Buffer.byteLength(process.env.MFA_ENC_KEY || "") >= 32;
+
+  const resetOn = process.env.ENABLE_PASSWORD_RESET === "true";
+  const verifyOn = process.env.ENABLE_EMAIL_VERIFICATION === "true";
+  const mailConfigured = !!(process.env.RESEND_API_KEY || (process.env.AWS_REGION && process.env.SES_FROM));
+  const appUrl = process.env.APP_URL || "";
+  const appUrlOk = !!appUrl && !/localhost|127\.0\.0\.1/.test(appUrl);
+
+  const blockers = [];
+  if (isProd) {
+    if (weakSecret) blockers.push("JWT_SECRET must be a strong, non-default secret (>= 32 chars) in production.");
+    if (mfaOn && !mfaKeyOk) blockers.push("MFA_ENC_KEY (>= 32 bytes) is required when ENABLE_ADMIN_MFA=true.");
+    if (resetOn && !mailConfigured) blockers.push("ENABLE_PASSWORD_RESET requires a mail provider (RESEND_API_KEY, or AWS_REGION + SES_FROM).");
+    if (verifyOn && !mailConfigured) blockers.push("ENABLE_EMAIL_VERIFICATION requires a mail provider (RESEND_API_KEY, or AWS_REGION + SES_FROM).");
+    if ((resetOn || verifyOn) && !appUrlOk) blockers.push("APP_URL must be your public site URL (not localhost) when reset/verification emails are enabled.");
+  } else {
+    if (weakSecret) console.warn("⚠ JWT_SECRET is weak/default — OK for dev, MUST be replaced in production.");
+    if (mfaOn && !mfaKeyOk) console.warn("⚠ ENABLE_ADMIN_MFA is on without a 32-byte MFA_ENC_KEY — TOTP secrets fall back to a derived dev key.");
+  }
+
+  if (blockers.length) {
+    console.error("✖ Authentication configuration check FAILED:");
+    blockers.forEach((b) => console.error("   - " + b));
+    console.error("✖ Refusing to start. Fix the configuration above and restart.");
+    process.exit(1);
+  } else {
+    console.log(`✔ Authentication configuration check passed (${isProd ? "production" : "development"}).`);
+  }
+}
+assertAuthConfig();
+
 const PORT = process.env.PORT || 5050;
 connectDB().then(async () => {
   // Phase 3: ensure commerce collections exist (so transactional writes don't try to
