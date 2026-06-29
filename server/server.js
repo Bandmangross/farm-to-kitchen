@@ -46,6 +46,45 @@ app.get("*", (req, res) => res.sendFile(path.join(clientDir, "index.html")));
 // ── Errors ──
 app.use(errorHandler);
 
+// ── Production payment-config guard (WS4) ──
+// Fail fast so an unsafe payment configuration can NEVER reach production. In
+// development we only warn, so local testing (test key + simulated payments)
+// still works. The one rule enforced everywhere: a LIVE key must never run with
+// simulated payments enabled.
+function assertPaymentConfig() {
+  const isProd = process.env.NODE_ENV === "production";
+  const key = process.env.PAYSTACK_SECRET_KEY || "";
+  const liveKey = key.startsWith("sk_live_");
+  const testKey = key.startsWith("sk_test_");
+  const placeholderKey = !key || key.includes("xxxx");
+  const simOn = process.env.ALLOW_SIMULATED_PAYMENTS === "true";
+  const integrityOn = process.env.ENABLE_COMMERCE_INTEGRITY === "true";
+  const webhookOn = process.env.ENABLE_PAYMENT_WEBHOOK === "true";
+
+  const blockers = [];
+  if (isProd) {
+    if (placeholderKey || testKey) blockers.push("PAYSTACK_SECRET_KEY must be a LIVE key (sk_live_...) in production.");
+    if (simOn) blockers.push("ALLOW_SIMULATED_PAYMENTS must be false in production.");
+    if (!integrityOn) blockers.push("ENABLE_COMMERCE_INTEGRITY must be true in production (secure verification path).");
+    if (!webhookOn) blockers.push("ENABLE_PAYMENT_WEBHOOK must be true in production (settlement safety net).");
+  }
+  // Dangerous in ANY environment: a real live key with simulation enabled.
+  if (liveKey && simOn) blockers.push("ALLOW_SIMULATED_PAYMENTS must NOT be enabled while a LIVE Paystack key is in use.");
+
+  if (blockers.length) {
+    console.error("✖ Payment configuration check FAILED:");
+    blockers.forEach((b) => console.error("   - " + b));
+    if (isProd || (liveKey && simOn)) {
+      console.error("✖ Refusing to start. Fix the configuration above and restart.");
+      process.exit(1);
+    }
+    console.warn("⚠ (development) Continuing despite the warnings above — DO NOT ship this config to production.");
+  } else {
+    console.log(`✔ Payment configuration check passed (${isProd ? "production" : "development"}).`);
+  }
+}
+assertPaymentConfig();
+
 const PORT = process.env.PORT || 5050;
 connectDB().then(async () => {
   // Phase 3: ensure commerce collections exist (so transactional writes don't try to

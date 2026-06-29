@@ -50,8 +50,11 @@ exports.confirm = async (req, res, next) => {
     }
 
     let verified;
-    // Allow a simulated reference for local demos without a Paystack secret key.
-    if (reference.startsWith("SIMULATED-") || !process.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY.includes("xxxx")) {
+    // SECURITY: simulation is allowed ONLY when explicitly enabled via
+    // ALLOW_SIMULATED_PAYMENTS (dev/test). It is NEVER inferred from a missing or
+    // placeholder key — that inference was a free-order/payment bypass. In every
+    // other case the charge MUST be verified with Paystack using the secret key.
+    if (paystack.simulationAllowed() && String(reference).startsWith("SIMULATED-")) {
       verified = { status: true, data: { status: "success", amount: order.grandTotal * 100, channel: "simulated", currency: "NGN" } };
     } else {
       verified = await verifyWithPaystack(reference);
