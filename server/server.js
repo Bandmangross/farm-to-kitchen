@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const cookieParser = require("cookie-parser");
+const mongoose = require("mongoose"); // read the live connection state for readiness (WS6A)
 const connectDB = require("./config/db");
 const errorHandler = require("./middleware/errorHandler");
 
@@ -36,7 +37,18 @@ app.use("/api/payments", require("./routes/payments"));
 app.use("/api/analytics", require("./routes/analytics"));
 app.use("/api/admin", require("./routes/admin")); // Phase 3 — admin orders dashboard (flag-gated)
 
+// Liveness — "is the Node process up and serving?" Never depends on external deps,
+// so an orchestrator (Render) won't restart-loop the app during a DB outage.
 app.get("/api/health", (req, res) => res.json({ ok: true, time: new Date() }));
+
+// Readiness (WS6A) — "can we actually serve real requests?" 200 only when MongoDB is
+// connected (readyState === 1); 503 otherwise. Read-only, synchronous (no DB round-trip).
+app.get("/api/ready", (req, res) => {
+  const states = ["disconnected", "connected", "connecting", "disconnecting"];
+  const state = mongoose.connection.readyState; // 0|1|2|3 (in-memory enum)
+  const ready = state === 1;
+  res.status(ready ? 200 : 503).json({ ready, db: states[state] || "unknown", time: new Date() });
+});
 
 // ── Serve the static client (../client) ──
 const clientDir = path.join(__dirname, "..", "client");
