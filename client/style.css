@@ -3557,3 +3557,75 @@ body.dark-mode .account-sidebar-title { border-color: #2a323b; }
 .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 1100; }
 body.dark-mode .account-mobilebar { background: #1e242b; }
 body.dark-mode .mobilebar-title { color: #f0f2f4; }
+
+/* ═══════════════════════════════════════════════
+   WS8 — My Account overview dashboard
+═══════════════════════════════════════════════ */
+.ov-recent { margin: 0 0 28px; }
+.ov-recent-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.ov-recent-head h3 { margin: 0; font-size: 18px; color: #1a1a1a; }
+#overview-recent { display: flex; flex-direction: column; gap: 10px; }
+
+.ov-order {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 12px;
+    padding: 14px 16px;
+    cursor: pointer;
+    font: inherit;
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+.ov-order:hover { border-color: #d8e6dc; box-shadow: 0 4px 14px rgba(0,0,0,0.06); }
+.ov-order-id { font-weight: 700; color: #1a1a1a; }
+.ov-order-date { color: #8a9097; font-size: 13px; }
+.ov-order-total { font-weight: 800; color: #1f7a3f; }
+
+.ov-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 0 0 24px; }
+.ov-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    background: #fff;
+    border: 1px solid #eee;
+    border-radius: 14px;
+    padding: 18px;
+    cursor: pointer;
+    text-align: left;
+    font: inherit;
+    transition: transform 0.15s, box-shadow 0.2s, border-color 0.15s;
+}
+.ov-card:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(0,0,0,0.08); border-color: #d8e6dc; }
+.ov-ico { font-size: 24px; }
+.ov-t { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+.ov-d { font-size: 12.5px; color: #8a9097; }
+
+.ov-logout {
+    background: #fff;
+    border: 1.5px solid #f0d0cc;
+    color: #c0392b;
+    font-weight: 700;
+    padding: 12px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14px;
+}
+.ov-logout:hover { background: #fff5f5; }
+
+/* Dark mode parity (dashboard already supports it) */
+body.dark-mode .ov-order,
+body.dark-mode .ov-card { background: #1e242b; border-color: #2c333b; }
+body.dark-mode .ov-order-id,
+body.dark-mode .ov-t,
+body.dark-mode .ov-recent-head h3 { color: #f0f2f4; }
+
+@media (max-width: 700px) {
+    .ov-cards { grid-template-columns: repeat(2, 1fr); }
+    .ov-order { grid-template-columns: 1fr auto; }
+}

@@ -303,9 +303,29 @@
             <section class="settings-panel" id="panel-overview">
                 <div class="s-welcome">
                     <h2 id="overview-welcome">Welcome back 👋</h2>
-                    <p>Manage your account, orders, security, payments, preferences and support.</p>
-                    <p class="s-hint">Select an option from the menu to get started.</p>
+                    <p>Here's what's happening with your account.</p>
                 </div>
+
+                <!-- WS8: Recent Orders — the most important section -->
+                <div class="ov-recent">
+                    <div class="ov-recent-head">
+                        <h3>Recent Orders</h3>
+                        <button type="button" class="s-link" onclick="showSection('my-orders')">View all &rarr;</button>
+                    </div>
+                    <div id="overview-recent"></div>
+                </div>
+
+                <!-- WS8: quick-access account cards -->
+                <div class="ov-cards">
+                    <button type="button" class="ov-card" onclick="showSection('my-orders')"><span class="ov-ico">📦</span><span class="ov-t">Orders</span><span class="ov-d">Track & view orders</span></button>
+                    <button type="button" class="ov-card" onclick="showSection('addresses')"><span class="ov-ico">📍</span><span class="ov-t">Addresses</span><span class="ov-d">Delivery locations</span></button>
+                    <button type="button" class="ov-card" onclick="showSection('wishlist')"><span class="ov-ico">❤️</span><span class="ov-t">Wishlist</span><span class="ov-d">Saved items</span></button>
+                    <button type="button" class="ov-card" onclick="showSection('my-account')"><span class="ov-ico">👤</span><span class="ov-t">Profile</span><span class="ov-d">Your details</span></button>
+                    <button type="button" class="ov-card" onclick="showSection('payment-methods')"><span class="ov-ico">💳</span><span class="ov-t">Payment Methods</span><span class="ov-d">Billing & preferences</span></button>
+                    <button type="button" class="ov-card" onclick="showSection('notifications')"><span class="ov-ico">🔔</span><span class="ov-t">Notifications</span><span class="ov-d">Email & order alerts</span></button>
+                </div>
+
+                <button type="button" class="ov-logout" onclick="logout()">🚪 Logout</button>
             </section>
 
             <!-- My Account -->
@@ -380,6 +400,14 @@
                     <div class="form-group"><label for="billing-name">Billing name</label><input type="text" id="billing-name" placeholder="Name on receipt"></div>
                     <div class="form-group"><label for="billing-address">Billing address</label><input type="text" id="billing-address" placeholder="Billing address"></div>
                     <button class="auth-btn primary" onclick="saveBilling()">Save Billing Info</button><span id="billing-saved" class="settings-saved" hidden>&#10003; Saved</span></div>
+            </section>
+
+            <!-- Wishlist (WS8) — empty state until a wishlist backend exists -->
+            <section class="settings-panel" id="panel-wishlist">
+                <h2 class="s-heading">Wishlist</h2>
+                <div class="s-card">
+                    <div class="empty-orders"><span class="empty-icon">❤️</span><p>No saved items yet.</p><a href="index.html#products" class="shop-link">Browse Products</a></div>
+                </div>
             </section>
 
             <!-- Notifications -->
@@ -544,10 +572,10 @@
     }
 
     // ── Navigation: load content into the right panel (no refresh) ─────────────
-    const SECTIONS = ["overview","my-account","my-orders","security","addresses","payment-methods","notifications","appearance","language-region","support","privacy"];
+    const SECTIONS = ["overview","my-account","my-orders","security","addresses","payment-methods","wishlist","notifications","appearance","language-region","support","privacy"];
     const SECTION_LABELS = {
         "overview": "", "my-account": "My Account", "my-orders": "My Orders", "security": "Security & Login",
-        "addresses": "Addresses", "payment-methods": "Payment Methods", "notifications": "Notifications",
+        "addresses": "Addresses", "payment-methods": "Payment Methods", "wishlist": "Wishlist", "notifications": "Notifications",
         "appearance": "Appearance", "language-region": "Language & Region", "support": "Support Center", "privacy": "Privacy & Security"
     };
     function hashToSection(hash) {
@@ -757,6 +785,8 @@
         document.getElementById("total-spent").textContent = "₦" + _orders.reduce(function (s, o) { return s + (o.grandTotal || 0); }, 0).toLocaleString();
         document.getElementById("member-since").textContent = getItem("joinDate") || new Date().toLocaleDateString("en-NG", { month: "short", year: "numeric" });
 
+        renderOverviewRecent(); // WS8: keep the overview Recent Orders in sync
+
         if (_orders.length === 0) {
             badge.style.display = "none";
             container.innerHTML = '<div class="empty-orders"><span class="empty-icon">🛒</span><p>No orders yet.</p><a href="index.html#products" class="shop-link">Start Shopping</a></div>';
@@ -769,6 +799,25 @@
             '<div id="orders-more" class="orders-more"></div>';
 
         renderMoreOrders();
+    }
+
+    // WS8: Recent Orders preview on the overview dashboard (reuses _orders; display only).
+    function renderOverviewRecent() {
+        const box = document.getElementById("overview-recent");
+        if (!box) return;
+        if (!_orders.length) {
+            box.innerHTML = '<div class="empty-orders"><span class="empty-icon">🛒</span><p>No orders yet — start shopping.</p><a href="index.html#products" class="shop-link">Start Shopping</a></div>';
+            return;
+        }
+        box.innerHTML = _orders.slice(0, 3).map(function (o) {
+            const st = o.status || "Awaiting Payment"; const stCls = "status-" + st.toLowerCase().replace(/\s+/g, "-");
+            return '<button type="button" class="ov-order" onclick="showSection(\'my-orders\')">' +
+                '<span class="ov-order-id">' + escTxt(o.orderId || "—") + '</span>' +
+                '<span class="ov-order-date">' + escTxt(fmtDate(o)) + '</span>' +
+                '<span class="status-badge ' + stCls + '">' + escTxt(st) + '</span>' +
+                '<span class="ov-order-total">' + fmtNaira(o.grandTotal) + '</span>' +
+            '</button>';
+        }).join("");
     }
 
     function orderRowHtml(o, i) {
