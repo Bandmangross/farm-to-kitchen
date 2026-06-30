@@ -1,3 +1,22 @@
+// ── WS7G: always start the homepage at the top on load / reload / bfcache ──
+// Stops the browser from restoring an old scroll position, and neutralises any
+// leftover #products/#cart hash that would re-anchor the page as products render
+// in asynchronously. Display/navigation only — no cart/product/API logic touched.
+// Clicking "Shop Now" / "Browse Products" after load still scrolls normally (they
+// set the hash on click, which happens after this initial reset).
+(function () {
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    function toTop() { window.scrollTo(0, 0); }
+    // Remove a section hash on first load so async content growth can't re-jump.
+    if (location.hash) {
+        try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+    }
+    toTop();
+    window.addEventListener("load", function () { toTop(); requestAnimationFrame(toTop); });
+    // iOS Safari back-forward cache: pageshow fires on restore — reset again.
+    window.addEventListener("pageshow", function (e) { if (e.persisted) toTop(); });
+})();
+
 let cartItems =
 JSON.parse(localStorage.getItem("cartItems")) || [];
 
