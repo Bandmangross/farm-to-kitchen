@@ -160,6 +160,24 @@ button { cursor: pointer; font-family: inherit; }
 
 .btn-hero-ghost:hover { background: rgba(255,255,255,0.15); border-color: white; }
 
+/* WS7F: homepage "Get Started" CTA (new customers → Create Account) */
+.btn-hero-getstarted {
+    background: #fff;
+    color: #1a2b1f;
+    border: none;
+    padding: 14px 30px;
+    font-size: 16px;
+    font-weight: 700;
+    border-radius: 10px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.18);
+    transition: transform 0.15s, box-shadow 0.2s;
+}
+.btn-hero-getstarted:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.25); }
+
 .hero-toast {
     margin-top: 22px !important;
     font-size: 15px !important;
@@ -1300,6 +1318,19 @@ button { cursor: pointer; font-family: inherit; }
     padding: 32px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.07);
 }
+
+/* WS7F: forgot-password link on the login card */
+.auth-forgot {
+    margin: -6px 0 14px;
+    text-align: right;
+    font-size: 13px;
+}
+.auth-forgot a {
+    color: #1f7a3f;
+    font-weight: 600;
+    text-decoration: none;
+}
+.auth-forgot a:hover { text-decoration: underline; }
 
 /* WS7E: create/sign-in switch link */
 .auth-switch {
