@@ -913,3 +913,34 @@ function setupProductSearch() {
 }
 
 setupProductSearch();
+
+// ── WS7C: auto-hide the mobile header on scroll-down, reveal on scroll-up ──
+// Display-only: reads scroll position and toggles a CSS class on the navbar.
+// Mobile only (≤600px); on desktop the class is removed and the transform rule
+// doesn't exist. Never touches cart/checkout/auth/products state.
+(function () {
+    var nav = document.querySelector(".navbar");
+    if (!nav) return;
+    var mq = window.matchMedia("(max-width: 600px)");
+    var lastY = window.pageYOffset || 0;
+    var ticking = false;
+
+    function update() {
+        var y = window.pageYOffset || 0;
+        if (mq.matches) {
+            // Hide only after scrolling past the header; always reveal on upward scroll.
+            if (y > lastY && y > 80) nav.classList.add("is-hidden");
+            else if (y < lastY)      nav.classList.remove("is-hidden");
+        } else {
+            nav.classList.remove("is-hidden"); // desktop: always visible
+        }
+        lastY = y;
+        ticking = false;
+    }
+
+    window.addEventListener("scroll", function () {
+        if (!ticking) { window.requestAnimationFrame(update); ticking = true; }
+    }, { passive: true });
+    // Keep the header shown when the viewport crosses the mobile breakpoint.
+    (mq.addEventListener ? mq.addEventListener("change", update) : mq.addListener(update));
+})();

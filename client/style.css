@@ -978,8 +978,9 @@ button { cursor: pointer; font-family: inherit; }
 }
 
 @media (max-width: 600px) {
-    /* ── Compact mobile navbar (sticky, Option A) ── */
-    .navbar       { padding: 10px 14px; }
+    /* ── Compact mobile navbar: sticky + auto-hide on scroll (WS7C) ── */
+    .navbar           { padding: 10px 14px; transition: transform 0.28s ease; will-change: transform; }
+    .navbar.is-hidden { transform: translateY(-100%); } /* slides up on scroll-down (mobile only) */
     .nav-actions  { gap: 12px; }
     .nav-link:not(.nav-cart-link) { display: none; }
     /* WS7 — eliminate navbar overflow on phones (cause-fix, no overflow:hidden) */
@@ -996,14 +997,14 @@ button { cursor: pointer; font-family: inherit; }
     /* ── WS7B: Amazon-style compact 2-column product feed ── */
     .products     { padding: 24px 10px 90px; }           /* full width + FAB bottom clearance */
     .product-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
-    .product-image { max-height: 120px; }                /* shorter image */
-    .product-body  { padding: 10px 11px 12px; }          /* tighter */
-    .product-body h3 { font-size: 14px; min-height: 0; margin: 0 0 4px; } /* keeps 2-line clamp */
+    .product-image { max-height: 112px; }                /* shorter image, still readable (WS7C) */
+    .product-body  { padding: 9px 10px 11px; }           /* less wasted vertical space (WS7C) */
+    .product-body h3 { font-size: 14px; min-height: 0; margin: 0 0 3px; } /* keeps 2-line clamp */
     .product-desc  { display: none; }                    /* hide blurb for a compact feed */
-    .product-price { font-size: 12px; margin: 0 0 8px; }
+    .product-price { font-size: 12px; margin: 0 0 7px; }
     .product-price strong { font-size: 16px; }
     .product-body label  { display: none; }              /* drop "Quantity" label; keep select */
-    .product-body select { padding: 8px 10px; font-size: 13px; margin-bottom: 8px; }
+    .product-body select { padding: 8px 10px; font-size: 13px; margin-bottom: 7px; }
     .btn-add       { padding: 10px; font-size: 13px; border-radius: 9px; } /* usable, not oversized */
 
     .trust-strip  { grid-template-columns: 1fr; }
