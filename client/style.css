@@ -914,6 +914,11 @@ button { cursor: pointer; font-family: inherit; }
     cursor: pointer;
     font-size: 20px;
     transition: background 0.2s, box-shadow 0.2s;
+    /* WS8B: clean vertical/horizontal centering of the icon glyph */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
 }
 
 #account-icon:hover { background: #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
@@ -1265,6 +1270,10 @@ button { cursor: pointer; font-family: inherit; }
     font-size: 16px;
     margin: 0 0 16px;
 }
+
+/* WS8B: two-line professional empty-orders copy */
+.empty-orders .empty-title { color: #444; font-size: 16px; font-weight: 700; margin: 0 0 4px; }
+.empty-orders .empty-sub { color: #999; font-size: 14px; margin: 0 0 18px; }
 
 .shop-link {
     display: inline-block;
