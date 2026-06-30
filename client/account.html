@@ -454,19 +454,21 @@
     <div id="auth-section">
         <div class="auth-hero"><span class="auth-hero-icon">🌾</span><h2>Welcome to Farm To Kitchen</h2><p>Fresh foodstuffs delivered straight to your kitchen</p></div>
         <div class="auth-grid">
-            <div class="auth-card">
-                <h3>Create Account</h3><p class="auth-subtitle">New here? Join thousands of happy customers.</p>
+            <div class="auth-card" id="auth-create">
+                <h3>Get Started</h3><p class="auth-subtitle">New here? Join thousands of happy customers.</p>
                 <div class="form-group"><label for="full-name">Full Name</label><input type="text" id="full-name" placeholder="e.g. Ada Okafor"></div>
                 <div class="form-group"><label for="email">Email Address</label><input type="email" id="email" placeholder="you@example.com"></div>
                 <div class="form-group"><label for="phone">Phone Number</label><input type="tel" id="phone" placeholder="080XXXXXXXX"></div>
                 <div class="form-group"><label for="password">Password</label><input type="password" id="password" placeholder="Choose a strong password"></div>
                 <button class="auth-btn primary" onclick="createAccount()">Create Account</button>
+                <p class="auth-switch">Already have an account? <a href="#" onclick="showLogin(); return false;">Sign in &rarr;</a></p>
             </div>
-            <div class="auth-card">
+            <div class="auth-card" id="auth-login" style="display:none;">
                 <h3>Login</h3><p class="auth-subtitle">Welcome back! Sign in to your account.</p>
                 <div class="form-group"><label for="login-email">Email Address</label><input type="email" id="login-email" placeholder="you@example.com"></div>
                 <div class="form-group"><label for="login-password">Password</label><input type="password" id="login-password" placeholder="Your password"></div>
                 <button class="auth-btn secondary" onclick="login()">Login</button>
+                <p class="auth-switch">New to Farm To Kitchen? <a href="#" onclick="showCreate(); return false;">Create account &rarr;</a></p>
             </div>
         </div>
     </div>
@@ -905,6 +907,18 @@
     document.addEventListener("ftk:user", function () {
         if (getItem("loggedInUser")) { populateProfile(); updateAccountDropdown(); }
     });
+    // WS7E: account-entry view toggle (UI only — no auth/API change).
+    window.showLogin = function () {
+        var c = document.getElementById("auth-create"), l = document.getElementById("auth-login");
+        if (c) c.style.display = "none";
+        if (l) l.style.display = "";
+    };
+    window.showCreate = function () {
+        var c = document.getElementById("auth-create"), l = document.getElementById("auth-login");
+        if (l) l.style.display = "none";
+        if (c) c.style.display = "";
+    };
+
     window.createAccount = async function () {
         const fullName = document.getElementById("full-name").value.trim(), email = document.getElementById("email").value.trim();
         const phone = document.getElementById("phone").value.trim(), password = document.getElementById("password").value.trim();

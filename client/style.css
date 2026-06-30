@@ -1287,11 +1287,11 @@ button { cursor: pointer; font-family: inherit; }
     margin: 0;
 }
 
+/* WS7E: single centered account-entry card (one form shown at a time) */
 .auth-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 24px;
-    margin-top: 24px;
+    display: block;
+    max-width: 420px;
+    margin: 24px auto 0;
 }
 
 .auth-card {
@@ -1300,6 +1300,20 @@ button { cursor: pointer; font-family: inherit; }
     padding: 32px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.07);
 }
+
+/* WS7E: create/sign-in switch link */
+.auth-switch {
+    margin: 16px 0 0;
+    text-align: center;
+    font-size: 14px;
+    color: #777;
+}
+.auth-switch a {
+    color: #1f7a3f;
+    font-weight: 600;
+    text-decoration: none;
+}
+.auth-switch a:hover { text-decoration: underline; }
 
 .auth-card h3 {
     margin: 0 0 6px;
