@@ -461,19 +461,34 @@
                 <div class="form-group"><label for="login-password">Password</label><input type="password" id="login-password" placeholder="Your password"></div>
                 <p class="auth-forgot"><a href="forgot-password.html">Forgot password?</a></p>
                 <button class="auth-btn primary" onclick="login()">Sign In</button>
-                <p class="auth-switch">New here? <a href="#" onclick="showCreate(); return false;">Create account &rarr;</a></p>
+                <div class="auth-divider"><span>New to Farm To Kitchen?</span></div>
+                <p class="auth-switch"><a href="#" onclick="showCreate(); return false;">Create your account &rarr;</a></p>
             </div>
             <!-- Create Account (toggled view, also reached via homepage "Get Started"). -->
             <div class="auth-card" id="auth-create" style="display:none;">
-                <h3>Create Your Account</h3><p class="auth-subtitle">Join thousands of happy customers</p>
+                <h3>Create your Farm To Kitchen Account</h3><p class="auth-subtitle">Join thousands of happy customers</p>
+                <ul class="auth-benefits">
+                    <li>Faster checkout</li>
+                    <li>Track your orders</li>
+                    <li>Save delivery addresses</li>
+                    <li>Exclusive offers</li>
+                </ul>
                 <div class="form-group"><label for="full-name">Full Name</label><input type="text" id="full-name" placeholder="e.g. Ada Okafor"></div>
                 <div class="form-group"><label for="email">Email Address</label><input type="email" id="email" placeholder="you@example.com"></div>
                 <div class="form-group"><label for="phone">Phone Number</label><input type="tel" id="phone" placeholder="080XXXXXXXX"></div>
                 <div class="form-group"><label for="password">Password</label><input type="password" id="password" placeholder="Choose a strong password"></div>
                 <button class="auth-btn primary" onclick="createAccount()">Create Account</button>
-                <p class="auth-switch">Already have an account? <a href="#" onclick="showLogin(); return false;">Sign in &rarr;</a></p>
+                <div class="auth-divider"><span>Already have an account?</span></div>
+                <p class="auth-switch"><a href="#" onclick="showLogin(); return false;">Sign in &rarr;</a></p>
             </div>
         </div>
+        <!-- WS7F: subtle trust builders (shared, both views) -->
+        <ul class="auth-trust">
+            <li>🔒 Secure checkout</li>
+            <li>🛡️ Encrypted account</li>
+            <li>👁️ Privacy protected</li>
+            <li>🚚 Fast delivery</li>
+        </ul>
     </div>
 
 </main>
@@ -929,7 +944,7 @@
         if (!window.API) { showToast("Service unavailable. Please try again.", "error"); return; }
         try {
             const res = await API.register({ fullName: fullName, email: email, phone: phone, password: password });
-            storeSession(res.user); showToast("Account created! Welcome 🌾"); setTimeout(function () { window.location.href = "index.html"; }, 1200);
+            storeSession(res.user); showToast("Account created! Welcome 🌾"); setTimeout(function () { window.location.href = "account.html"; }, 1200); // WS7F: land on My Account dashboard
         } catch (e) {
             showToast(e && e.status === 409 ? "An account with this email already exists." : (e && e.message) || "Could not create account. Please try again.", "error");
         }
@@ -939,7 +954,7 @@
         if (!window.API) { showToast("Service unavailable. Please try again.", "error"); return; }
         try {
             const res = await API.login(e1, p1);
-            storeSession(res.user); showToast("Login successful! 👋"); setTimeout(function () { window.location.href = "index.html"; }, 1200);
+            storeSession(res.user); showToast("Login successful! 👋"); setTimeout(function () { window.location.href = "account.html"; }, 1200); // WS7F: land on My Account dashboard
         } catch (e) {
             showToast(e && e.status === 401 ? "Invalid email or password." : (e && e.message) || "Could not sign in. Please try again.", "error");
         }

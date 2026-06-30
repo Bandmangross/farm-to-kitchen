@@ -160,23 +160,24 @@ button { cursor: pointer; font-family: inherit; }
 
 .btn-hero-ghost:hover { background: rgba(255,255,255,0.15); border-color: white; }
 
-/* WS7F: homepage "Get Started" CTA (new customers → Create Account) */
+/* WS7F: homepage "Get Started" = TERTIARY CTA — subtle, never competes with shopping
+   (Shop Now = filled primary, Browse Products = outline secondary, Get Started = subtle) */
 .btn-hero-getstarted {
-    background: #fff;
-    color: #1a2b1f;
-    border: none;
-    padding: 14px 30px;
-    font-size: 16px;
-    font-weight: 700;
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.25);
+    padding: 13px 24px;
+    font-size: 15px;
+    font-weight: 600;
     border-radius: 10px;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    box-shadow: 0 8px 22px rgba(0,0,0,0.18);
-    transition: transform 0.15s, box-shadow 0.2s;
+    backdrop-filter: blur(4px);
+    transition: background 0.2s, border-color 0.2s;
 }
-.btn-hero-getstarted:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0,0,0,0.25); }
+.btn-hero-getstarted:hover { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.45); }
 
 .hero-toast {
     margin-top: 22px !important;
@@ -1331,6 +1332,61 @@ button { cursor: pointer; font-family: inherit; }
     text-decoration: none;
 }
 .auth-forgot a:hover { text-decoration: underline; }
+
+/* WS7F premium: benefits checklist above the Create Account form */
+.auth-benefits {
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 14px 16px;
+    background: #f6faf7;
+    border-radius: 12px;
+    display: grid;
+    gap: 8px;
+}
+.auth-benefits li {
+    position: relative;
+    padding-left: 26px;
+    font-size: 13px;
+    color: #3a4a40;
+}
+.auth-benefits li::before {
+    content: "✓";
+    position: absolute;
+    left: 6px;
+    top: 0;
+    color: #1f7a3f;
+    font-weight: 800;
+}
+
+/* WS7F premium: labeled divider between the primary action and the switch link */
+.auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 12px;
+    color: #9aa0a6;
+    font-size: 13px;
+}
+.auth-divider::before,
+.auth-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #ececec;
+}
+
+/* WS7F premium: subtle trust builders below the card */
+.auth-trust {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 22px;
+    max-width: 420px;
+    margin: 18px auto 0;
+    padding: 0;
+}
+.auth-trust li { font-size: 12.5px; color: #8a9097; }
 
 /* WS7E: create/sign-in switch link */
 .auth-switch {
