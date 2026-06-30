@@ -61,6 +61,23 @@ button { cursor: pointer; font-family: inherit; }
     gap: 6px;
 }
 
+/* WS7 mobile: compact cart-count badge. Hidden on desktop (the text label shows). */
+.cart-badge {
+    display: none;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #1f7a3f;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+}
+
 /* ═══════════════════════════════════════════════
    HERO
 ═══════════════════════════════════════════════ */
@@ -963,6 +980,10 @@ button { cursor: pointer; font-family: inherit; }
     .navbar       { padding: 12px 18px; }
     .nav-actions  { gap: 14px; }
     .nav-link:not(.nav-cart-link) { display: none; }
+    /* WS7 — eliminate navbar overflow on phones (cause-fix, no overflow:hidden) */
+    .nav-brand span:not(.nav-logo) { display: none; }   /* keep 🌾 logo, hide wordmark */
+    .nav-cart-link #cart-count     { display: none; }   /* hide "Cart: N items" text */
+    .nav-cart-link .cart-badge     { display: inline-flex; } /* show compact number badge */
     .hero         { padding: 64px 18px 80px; }
     .hero h1      { font-size: 36px; }
     .hero p       { font-size: 16px; }

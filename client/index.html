@@ -26,7 +26,7 @@
         <a href="#products" class="nav-link">Shop</a>
         <a href="admin.html" class="nav-link nav-admin-link">Admin</a>
         <a href="#cart" class="nav-link nav-cart-link">
-            🛒 <span id="cart-count">Cart: 0 items</span>
+            🛒 <span id="cart-count">Cart: 0 items</span><span id="cart-badge" class="cart-badge" aria-hidden="true">0</span>
         </a>
 
         <div id="account-menu">
@@ -132,6 +132,18 @@
 <script src="api.js"></script>
 <script src="script.js"></script>
 <script src="assistant.js"></script>
+
+<!-- WS7 mobile: mirror the cart count into the compact badge (display only; no cart logic) -->
+<script>
+  (function () {
+    var cc = document.getElementById("cart-count");
+    var badge = document.getElementById("cart-badge");
+    if (!cc || !badge) return;
+    var sync = function () { var m = (cc.textContent || "").match(/\d+/); badge.textContent = m ? m[0] : "0"; };
+    sync();
+    new MutationObserver(sync).observe(cc, { childList: true, characterData: true, subtree: true });
+  })();
+</script>
 
 </body>
 </html>
