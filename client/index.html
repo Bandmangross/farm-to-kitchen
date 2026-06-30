@@ -32,11 +32,9 @@
         <div id="account-menu">
             <button onclick="toggleAccountMenu()" id="account-icon">👤</button>
             <div id="account-dropdown">
-                <a href="account.html" onclick="closeAccountMenu()">Create Account</a>
-                <a href="account.html" onclick="closeAccountMenu()">Login</a>
-                <a href="#cart" onclick="closeAccountMenu()">My Cart</a>
-                <a href="#" onclick="closeAccountMenu()">Support</a>
-                <a href="#" onclick="closeAccountMenu()">Settings</a>
+                <!-- WS7F: logged-out fallback = Sign In + Shop (script.js rebuilds on load) -->
+                <a href="account.html" onclick="closeAccountMenu()">Sign In</a>
+                <a href="#products" onclick="closeAccountMenu()">Shop</a>
             </div>
         </div>
     </div>

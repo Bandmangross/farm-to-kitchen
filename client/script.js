@@ -629,9 +629,10 @@ if (accountDropdown && accountIcon) {
             '<a href="#" onclick="closeAccountMenu(); if(window.FTKAssistant){FTKAssistant.open(\'support\');} return false;">Support Center</a>' +
             '<a href="#" class="dd-logout" onclick="logout()">Logout</a>';
     } else {
+        // WS7F: logged-out icon menu = Sign In + Shop only. Create Account is reached
+        // from the homepage "Get Started" CTA and the "Create your account" link on Sign In.
         accountDropdown.innerHTML =
-            '<a href="account.html" onclick="closeAccountMenu()">Create Account</a>' +
-            '<a href="account.html" onclick="closeAccountMenu()">Login</a>' +
+            '<a href="account.html" onclick="closeAccountMenu()">Sign In</a>' +
             '<a href="#products" onclick="closeAccountMenu()">Shop</a>';
     }
 
